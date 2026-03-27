@@ -67,6 +67,11 @@ public sealed class PlaywrightCrawlOptions
     public bool RewriteCrossOriginAssetUrls { get; set; }
 
     /// <summary>
+    /// Formats saved HTML documents with Soenneker.Html.Formatter when true.
+    /// </summary>
+    public bool FormatHtml { get; set; }
+
+    /// <summary>
     /// Deletes any existing output directory before crawling.
     /// </summary>
     public bool ClearSaveDirectory { get; set; }

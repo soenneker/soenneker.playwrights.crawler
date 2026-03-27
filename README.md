@@ -71,6 +71,7 @@ PlaywrightCrawlResult result = await crawler.Crawl(new PlaywrightCrawlOptions
     MaxDuration = TimeSpan.FromMinutes(10),
     SameHostOnly = true,
     IgnoreQueryStringsInDuplicateDetection = true,
+    FormatHtml = true,
     IncludeCrossOriginAssets = true,
     RewriteCrossOriginAssetUrls = true,
     ClearSaveDirectory = true,
@@ -129,6 +130,7 @@ Saves:
 | `MaxDuration` | Optional maximum crawl duration. |
 | `SameHostOnly` | Restricts queued pages to the same host as the root URL. |
 | `IgnoreQueryStringsInDuplicateDetection` | Treats query-string variants as the same page when detecting duplicates. |
+| `FormatHtml` | Formats saved HTML documents with `Soenneker.Html.Formatter` when `true`. Defaults to `false`. |
 | `IncludeCrossOriginAssets` | In `Full` mode, saves cross-origin resources under `_external`. |
 | `RewriteCrossOriginAssetUrls` | Rewrites saved HTML so captured cross-origin asset URLs point at the local `_external` copy. Requires `IncludeCrossOriginAssets`. |
 | `ClearSaveDirectory` | Deletes the output directory before crawling. |
@@ -167,6 +169,7 @@ Examples:
 
 - Playwright browser installation is ensured automatically before the crawl starts.
 - Duplicate detection ignores query strings by default.
+- HTML formatting is opt-in and uses `Soenneker.Html.Formatter` when `FormatHtml = true`.
 - Challenge and captcha-like pages contribute to the crawler's blocking and slow-mode signals.
 - Cross-origin URL rewriting only applies to captured cross-origin assets that are actually available on disk.
 - `Full` mode captures resources observed during page loads, but the rewrite pass is limited to captured cross-origin asset URLs rather than a full offline-mirroring transform.

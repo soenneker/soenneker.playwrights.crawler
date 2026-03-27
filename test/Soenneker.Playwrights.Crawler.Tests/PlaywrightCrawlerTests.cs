@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
 using Soenneker.Facts.Local;
-using Soenneker.Facts.Manual;
 using Soenneker.Playwrights.Crawler.Abstract;
 using Soenneker.Playwrights.Crawler.Dtos;
 using Soenneker.Playwrights.Crawler.Enums;

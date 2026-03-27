@@ -13,6 +13,7 @@ using Soenneker.Asyncs.Locks;
 using Soenneker.Extensions.String;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
+using Soenneker.Html.Formatter.Abstract;
 using Soenneker.Playwrights.Crawler.Dtos;
 using Soenneker.Playwrights.Crawler.Utils.Abstract;
 using Soenneker.Utils.Directory.Abstract;
@@ -27,15 +28,17 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
     private readonly IDirectoryUtil _directoryUtil;
     private readonly IPlaywrightCrawlerUrlUtil _urlUtil;
     private readonly IPlaywrightCrawlerPolicyUtil _policyUtil;
+    private readonly IHtmlFormatter _htmlFormatter;
 
     public PlaywrightCrawlerStorage(ILogger<PlaywrightCrawlerStorage> logger, IFileUtil fileUtil, IDirectoryUtil directoryUtil,
-        IPlaywrightCrawlerUrlUtil urlUtil, IPlaywrightCrawlerPolicyUtil policyUtil)
+        IPlaywrightCrawlerUrlUtil urlUtil, IPlaywrightCrawlerPolicyUtil policyUtil, IHtmlFormatter htmlFormatter)
     {
         _logger = logger;
         _fileUtil = fileUtil;
         _directoryUtil = directoryUtil;
         _urlUtil = urlUtil;
         _policyUtil = policyUtil;
+        _htmlFormatter = htmlFormatter;
     }
 
     public ValueTask DeleteDirectory(string directory, CancellationToken cancellationToken)
@@ -51,7 +54,9 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
     public async Task SaveRenderedDocument(Uri rootUri, Uri documentUri, string html, PlaywrightCrawlOptions options, PlaywrightCrawlResult result,
         ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, CancellationToken cancellationToken)
     {
-        byte[] bytes = Encoding.UTF8.GetBytes(html);
+        string htmlToSave = await FormatHtmlIfEnabled(html, options, cancellationToken)
+            .NoSync();
+        byte[] bytes = Encoding.UTF8.GetBytes(htmlToSave);
         string relativePath = _urlUtil.BuildRelativePath(rootUri, documentUri, isHtmlDocument: true, contentType: "text/html");
 
         await SaveFile(documentUri.AbsoluteUri, relativePath, bytes, isHtmlDocument: true, "text/html", options, result, savedUrls, resultLock,
@@ -59,8 +64,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             .NoSync();
     }
 
-    public async Task<IReadOnlyDictionary<string, string>> SaveObservedResponses(IEnumerable<IResponse> responses, Uri rootUri, Uri mainDocumentUri, PlaywrightCrawlOptions options,
-        PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, Stopwatch stopwatch,
+    public async Task<IReadOnlyDictionary<string, string>> SaveObservedResponses(IEnumerable<IResponse> responses, Uri rootUri, Uri mainDocumentUri,
+        PlaywrightCrawlOptions options, PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, Stopwatch stopwatch,
         CancellationToken cancellationToken)
     {
         var externalResources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -131,30 +136,34 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         if (!options.IncludeCrossOriginAssets || externalResources.Count == 0)
             return;
 
+        string originalHtml = await FormatHtmlIfEnabled(html, options, cancellationToken)
+            .NoSync();
         string rewrittenHtml = RewriteExternalResourceUrls(rootUri, documentUri, html, externalResources);
+        rewrittenHtml = await FormatHtmlIfEnabled(rewrittenHtml, options, cancellationToken)
+            .NoSync();
 
-        if (string.Equals(rewrittenHtml, html, StringComparison.Ordinal))
+        if (string.Equals(rewrittenHtml, originalHtml, StringComparison.Ordinal))
             return;
 
         string relativePath = _urlUtil.BuildRelativePath(rootUri, documentUri, isHtmlDocument: true, contentType: "text/html");
         string fullPath = Path.Combine(result.SaveDirectory, relativePath);
         byte[] rewrittenBytes = Encoding.UTF8.GetBytes(rewrittenHtml);
-        long sizeDelta = rewrittenBytes.LongLength - Encoding.UTF8.GetByteCount(html);
+        long sizeDelta = rewrittenBytes.LongLength - Encoding.UTF8.GetByteCount(originalHtml);
 
-        using (await resultLock.Lock(cancellationToken).NoSync())
+        using (await resultLock.Lock(cancellationToken)
+                               .NoSync())
         {
             if (sizeDelta > 0 && options.MaxStorageBytes.HasValue && result.BytesWritten + sizeDelta > options.MaxStorageBytes.Value)
             {
-                _logger.LogDebug("Skipping cross-origin URL rewrite for {Url} because the rewritten HTML would exceed the storage limit.", documentUri.AbsoluteUri);
+                _logger.LogDebug("Skipping cross-origin URL rewrite for {Url} because the rewritten HTML would exceed the storage limit.",
+                    documentUri.AbsoluteUri);
                 return;
             }
 
             result.BytesWritten += sizeDelta;
 
             PlaywrightCrawlFileResult? file = result.Files.LastOrDefault(fileResult =>
-                fileResult.Saved &&
-                fileResult.IsHtmlDocument &&
-                string.Equals(fileResult.Url, documentUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase));
+                fileResult.Saved && fileResult.IsHtmlDocument && string.Equals(fileResult.Url, documentUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase));
 
             if (file is not null)
                 file.SizeBytes = rewrittenBytes.LongLength;
@@ -164,14 +173,16 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                        .NoSync();
     }
 
-    public async ValueTask<bool> SaveFile(string url, string relativePath, byte[] bytes, bool isHtmlDocument, string? contentType, PlaywrightCrawlOptions options,
-        PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, CancellationToken cancellationToken)
+    public async ValueTask<bool> SaveFile(string url, string relativePath, byte[] bytes, bool isHtmlDocument, string? contentType,
+        PlaywrightCrawlOptions options, PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock,
+        CancellationToken cancellationToken)
     {
         string fullPath = Path.Combine(result.SaveDirectory, relativePath);
 
         if (!savedUrls.TryAdd(url, 0))
         {
-            using (await resultLock.Lock(cancellationToken).NoSync())
+            using (await resultLock.Lock(cancellationToken)
+                                   .NoSync())
             {
                 result.Files.Add(new PlaywrightCrawlFileResult
                 {
@@ -187,7 +198,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             return true;
         }
 
-        using (await resultLock.Lock(cancellationToken).NoSync())
+        using (await resultLock.Lock(cancellationToken)
+                               .NoSync())
         {
             if (options.MaxStorageBytes.HasValue && result.BytesWritten + bytes.LongLength > options.MaxStorageBytes.Value)
             {
@@ -209,7 +221,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         if (!options.OverwriteExistingFiles && await _fileUtil.Exists(fullPath, cancellationToken)
                                                               .NoSync())
         {
-            using (await resultLock.Lock(cancellationToken).NoSync())
+            using (await resultLock.Lock(cancellationToken)
+                                   .NoSync())
             {
                 result.Files.Add(new PlaywrightCrawlFileResult
                 {
@@ -234,7 +247,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         await _fileUtil.Write(fullPath, bytes, log: true, cancellationToken)
                        .NoSync();
 
-        using (await resultLock.Lock(cancellationToken).NoSync())
+        using (await resultLock.Lock(cancellationToken)
+                               .NoSync())
         {
             result.BytesWritten += bytes.LongLength;
 
@@ -279,6 +293,15 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         return rewritten;
     }
 
+    private async ValueTask<string> FormatHtmlIfEnabled(string html, PlaywrightCrawlOptions options, CancellationToken cancellationToken)
+    {
+        if (!options.FormatHtml)
+            return html;
+
+        return await _htmlFormatter.Format(html, cancellationToken)
+                                   .NoSync();
+    }
+
     private static string BuildDocumentRelativeReference(string documentDirectory, string targetRelativePath)
     {
         string baseDirectory = documentDirectory.HasContent() ? documentDirectory : ".";
@@ -307,28 +330,21 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 
         string path = resourceUri.AbsolutePath;
 
-        if (path.StartsWith("/.well-known/vercel/", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/_vercel/", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/_next/data/", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/_next/flight", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/_next/webpack-hmr", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/_next/image", StringComparison.OrdinalIgnoreCase))
+        if (path.StartsWith("/.well-known/vercel/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("/_vercel/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/_next/data/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("/_next/flight", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/_next/webpack-hmr", StringComparison.OrdinalIgnoreCase) || path.StartsWith("/_next/image", StringComparison.OrdinalIgnoreCase))
             return true;
 
         string? contentType = TryGetHeaderValue(response.Headers, "content-type");
 
-        if (contentType is not null &&
-            (contentType.Contains("text/x-component", StringComparison.OrdinalIgnoreCase) ||
-             contentType.Contains("application/x-component", StringComparison.OrdinalIgnoreCase)))
+        if (contentType is not null && (contentType.Contains("text/x-component", StringComparison.OrdinalIgnoreCase) ||
+                                        contentType.Contains("application/x-component", StringComparison.OrdinalIgnoreCase)))
             return true;
 
         bool hasExtension = !string.IsNullOrWhiteSpace(Path.GetExtension(path));
 
-        if (!hasExtension &&
-            response.Request.ResourceType is "fetch" or "xhr" &&
-            contentType is not null &&
-            (contentType.Contains("json", StringComparison.OrdinalIgnoreCase) ||
-             contentType.Contains("text/plain", StringComparison.OrdinalIgnoreCase) ||
+        if (!hasExtension && response.Request.ResourceType is "fetch" or "xhr" && contentType is not null &&
+            (contentType.Contains("json", StringComparison.OrdinalIgnoreCase) || contentType.Contains("text/plain", StringComparison.OrdinalIgnoreCase) ||
              contentType.Contains("octet-stream", StringComparison.OrdinalIgnoreCase)))
             return true;
 

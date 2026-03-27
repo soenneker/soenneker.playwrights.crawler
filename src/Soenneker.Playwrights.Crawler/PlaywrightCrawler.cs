@@ -6,8 +6,6 @@ using Soenneker.Extensions.ValueTask;
 using Soenneker.Playwright.Installation.Abstract;
 using Soenneker.Playwrights.Crawler.Abstract;
 using Soenneker.Playwrights.Crawler.Utils.Abstract;
-using Soenneker.Utils.Directory.Abstract;
-using Soenneker.Utils.File.Abstract;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -31,9 +29,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
     private readonly IPlaywrightCrawlerPolicyUtil _policyUtil;
     private readonly IPlaywrightCrawlerUrlUtil _urlUtil;
 
-    public PlaywrightCrawler(ILogger<PlaywrightCrawler> logger, IPlaywrightInstallationUtil playwrightInstallationUtil, IFileUtil fileUtil,
-        IDirectoryUtil directoryUtil, IPlaywrightCrawlerStorage storage, IPlaywrightCrawlerBrowserUtil browserUtil, IPlaywrightCrawlerPolicyUtil policyUtil,
-        IPlaywrightCrawlerUrlUtil urlUtil)
+    public PlaywrightCrawler(ILogger<PlaywrightCrawler> logger, IPlaywrightInstallationUtil playwrightInstallationUtil, IPlaywrightCrawlerStorage storage,
+        IPlaywrightCrawlerBrowserUtil browserUtil, IPlaywrightCrawlerPolicyUtil policyUtil, IPlaywrightCrawlerUrlUtil urlUtil)
     {
         _logger = logger;
         _playwrightInstallationUtil = playwrightInstallationUtil;
@@ -172,7 +169,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                     {
                         _logger.LogError(ex, "Failed to crawl page {Url}", target.Uri.AbsoluteUri);
 
-                        using (await resultLock.Lock(cancellationToken).NoSync())
+                        using (await resultLock.Lock(cancellationToken)
+                                               .NoSync())
                         {
                             result.Errors.Add(new PlaywrightCrawlError
                             {
@@ -262,7 +260,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
             Uri finalUri = _urlUtil.ValidateAndNormalizeRootUrl(page.Url);
             visitedPages.TryAdd(_urlUtil.NormalizePageUrl(finalUri, options.IgnoreQueryStringsInDuplicateDetection)
-                                     .AbsoluteUri, 0);
+                                        .AbsoluteUri, 0);
             string title = await page.TitleAsync()
                                      .NoSync();
             string html = await page.ContentAsync()
@@ -290,16 +288,16 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                     responseSnapshot = [.. responses];
                 }
 
-                IReadOnlyDictionary<string, string> externalResources =
-                    await _storage.SaveObservedResponses(responseSnapshot, rootUri, finalUri, options, result, savedUrls, resultLock, stopwatch,
-                            cancellationToken)
-                        .NoSync();
+                IReadOnlyDictionary<string, string> externalResources = await _storage
+                                                                              .SaveObservedResponses(responseSnapshot, rootUri, finalUri, options, result,
+                                                                                  savedUrls, resultLock, stopwatch, cancellationToken)
+                                                                              .NoSync();
 
                 if (options.RewriteCrossOriginAssetUrls && externalResources.Count > 0)
                 {
                     await _storage.RewriteExternalResourceUrlsInSavedDocument(rootUri, finalUri, html, externalResources, options, result, resultLock,
-                            cancellationToken)
-                        .NoSync();
+                                      cancellationToken)
+                                  .NoSync();
                 }
             }
 

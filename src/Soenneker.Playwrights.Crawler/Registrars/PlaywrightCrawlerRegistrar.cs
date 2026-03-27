@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Soenneker.Html.Formatter.Registrars;
 using Soenneker.Playwright.Installation.Registrars;
 using Soenneker.Playwrights.Crawler.Abstract;
 using Soenneker.Playwrights.Crawler.Utils;
@@ -21,6 +22,7 @@ public static class PlaywrightCrawlerRegistrar
     {
         services.AddFileUtilAsSingleton()
                 .AddDirectoryUtilAsSingleton()
+                .AddHtmlFormatterAsSingleton()
                 .AddPlaywrightInstallationUtilAsSingleton();
 
         services.TryAddSingleton<IPlaywrightCrawlerBrowserUtil, PlaywrightCrawlerBrowserUtil>();
@@ -39,6 +41,7 @@ public static class PlaywrightCrawlerRegistrar
     {
         services.AddFileUtilAsScoped()
                 .AddDirectoryUtilAsScoped()
+                .AddHtmlFormatterAsScoped()
                 .AddPlaywrightInstallationUtilAsSingleton();
 
         services.TryAddScoped<IPlaywrightCrawlerBrowserUtil, PlaywrightCrawlerBrowserUtil>();
