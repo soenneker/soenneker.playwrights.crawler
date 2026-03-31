@@ -52,7 +52,7 @@
         <PackageReference Include="Soenneker.Html.Formatter" Version="4.0.2" />
         <PackageReference Include="Soenneker.Playwright.Installation" Version="4.0.247" />
         <PackageReference Include="Soenneker.Playwrights.Extensions.Stealth" Version="4.0.61" />
-        <PackageReference Include="Soenneker.Utils.Directory" Version="4.0.837" />
+        <PackageReference Include="Soenneker.Utils.Directory" Version="4.0.838" />
         <PackageReference Include="Soenneker.Utils.File" Version="4.0.2134" />
     </ItemGroup>
 
