@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Soenneker.Html.Formatter.Registrars;
-using Soenneker.Playwright.Installation.Registrars;
+using Soenneker.Playwrights.Installation.Registrars;
 using Soenneker.Playwrights.Crawler.Abstract;
 using Soenneker.Playwrights.Crawler.Utils;
 using Soenneker.Playwrights.Crawler.Utils.Abstract;

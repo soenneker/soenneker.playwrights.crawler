@@ -3,7 +3,7 @@ using Microsoft.Playwright;
 using Soenneker.Asyncs.Locks;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
-using Soenneker.Playwright.Installation.Abstract;
+using Soenneker.Playwrights.Installation.Abstract;
 using Soenneker.Playwrights.Crawler.Abstract;
 using Soenneker.Playwrights.Crawler.Utils.Abstract;
 using System;
