@@ -29,8 +29,8 @@ public sealed class PlaywrightCrawlerTests : FixturedUnitTest
     {
         var options = new PlaywrightCrawlOptions
         {
-            Url = "https://example.com", Mode = PlaywrightCrawlMode.Full,
-            SaveDirectory = @"c:\example", ClearSaveDirectory = true, ContinueOnPageError = true, Headless = true, SameHostOnly = true,
+            Url = "https://blazorblueprintui.com/docs/introduction", Mode = PlaywrightCrawlMode.Full,
+            SaveDirectory = @"c:\blueprint", ClearSaveDirectory = true, ContinueOnPageError = true, Headless = true, SameHostOnly = true,
             MaxDepth = 30
         };
 

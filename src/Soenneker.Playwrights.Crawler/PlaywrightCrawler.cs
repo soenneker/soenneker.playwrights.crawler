@@ -93,10 +93,12 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         var queuedPages = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         queuedPages.TryAdd(_urlUtil.NormalizePageUrl(rootUri, options.IgnoreQueryStringsInDuplicateDetection)
                                    .AbsoluteUri, 0);
+
         var savedUrls = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         var globalSemaphore = new SemaphoreSlim(policy.GlobalMaxConcurrency, policy.GlobalMaxConcurrency);
         var domainStates = new ConcurrentDictionary<string, CrawlerDomainState>(StringComparer.OrdinalIgnoreCase);
         var ipSemaphores = new ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
+
         var frontier = Channel.CreateUnbounded<CrawlTarget>(new UnboundedChannelOptions
         {
             SingleReader = false,
@@ -116,6 +118,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
         using IPlaywright playwright = await Microsoft.Playwright.Playwright.CreateAsync()
                                                       .NoSync();
+
         await using IBrowser browser = await _browserUtil.CreateBrowser(playwright, options)
                                                          .NoSync();
 
@@ -142,6 +145,9 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
                         string normalizedTarget = _urlUtil.NormalizePageUrl(target.Uri, options.IgnoreQueryStringsInDuplicateDetection)
                                                           .AbsoluteUri;
+
+                        // Once a worker owns it, it is no longer merely queued.
+                        queuedPages.TryRemove(normalizedTarget, out _);
 
                         if (!visitedPages.TryAdd(normalizedTarget, 0))
                         {
@@ -219,30 +225,33 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         PlaywrightCrawlPolicy policy = options.Policy ?? new PlaywrightCrawlPolicy();
         string domainKey = _urlUtil.GetDomainKey(target.Uri);
         CrawlerDomainState domainState = domainStates.GetOrAdd(domainKey, key => new CrawlerDomainState(key, policy.PerDomainMaxConcurrency));
+
         string ipKey = await _urlUtil.ResolveIpKey(target.Uri, cancellationToken)
                                      .NoSync();
+
         SemaphoreSlim ipSemaphore = ipSemaphores.GetOrAdd(ipKey, _ => new SemaphoreSlim(policy.PerIpMaxConcurrency, policy.PerIpMaxConcurrency));
 
         IPage page = await context.NewPageAsync()
                                   .NoSync();
+
         page.SetDefaultNavigationTimeout(options.NavigationTimeoutMs);
         page.SetDefaultTimeout(policy.RequestTimeoutMs);
 
-        var responses = new List<IResponse>();
-        await using var responsesLock = new AsyncLock();
+        var responses = new List<IResponse>(128);
+        var responsesGate = new object();
 
-        EventHandler<IResponse> responseHandler = async (_, response) =>
+        void ResponseHandler(object? _, IResponse response)
         {
-            if (response is not null)
-            {
-                using (await responsesLock.Lock(cancellationToken))
-                {
-                    responses.Add(response);
-                }
-            }
-        };
+            if (response is null)
+                return;
 
-        page.Response += responseHandler;
+            lock (responsesGate)
+            {
+                responses.Add(response);
+            }
+        }
+
+        page.Response += ResponseHandler;
 
         try
         {
@@ -259,10 +268,13 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                           .NoSync();
 
             Uri finalUri = _urlUtil.ValidateAndNormalizeRootUrl(page.Url);
+
             visitedPages.TryAdd(_urlUtil.NormalizePageUrl(finalUri, options.IgnoreQueryStringsInDuplicateDetection)
                                         .AbsoluteUri, 0);
+
             string title = await page.TitleAsync()
                                      .NoSync();
+
             string html = await page.ContentAsync()
                                     .NoSync();
 
@@ -282,8 +294,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
             {
                 List<IResponse> responseSnapshot;
 
-                using (await responsesLock.Lock(cancellationToken)
-                                          .NoSync())
+                lock (responsesGate)
                 {
                     responseSnapshot = [.. responses];
                 }
@@ -343,7 +354,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         }
         finally
         {
-            page.Response -= responseHandler;
+            page.Response -= ResponseHandler;
+
             await page.CloseAsync()
                       .NoSync();
         }

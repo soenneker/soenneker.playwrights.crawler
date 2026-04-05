@@ -28,7 +28,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
     {
         PlaywrightCrawlPolicy policy = options.Policy ?? new PlaywrightCrawlPolicy();
 
-        for (var attempt = 0;; attempt++)
+        for (var attempt = 0; ; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -64,10 +64,10 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                 try
                 {
                     IResponse? response = await page.GotoAsync(targetUri.AbsoluteUri, new PageGotoOptions
-                                                    {
-                                                        Timeout = options.NavigationTimeoutMs,
-                                                        WaitUntil = options.WaitUntil
-                                                    })
+                    {
+                        Timeout = options.NavigationTimeoutMs,
+                        WaitUntil = options.WaitUntil
+                    })
                                                     .NoSync();
 
                     stopwatch.Stop();
@@ -171,6 +171,8 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
         try
         {
+            var spinCount = 0;
+
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -194,7 +196,10 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                         domainState.DomainKey, domainState.Mode, domainState.ActiveCount, allowedConcurrency);
                 }
 
-                await Task.Delay(100, cancellationToken)
+                spinCount++;
+                int delayMs = spinCount < 10 ? 25 : 100;
+
+                await Task.Delay(delayMs, cancellationToken)
                           .NoSync();
             }
         }
@@ -318,7 +323,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         return Math.Max(1, max);
     }
 
-    public bool ShouldStop(PlaywrightCrawlOptions options, PlaywrightCrawlResult result, System.Diagnostics.Stopwatch stopwatch)
+    public bool ShouldStop(PlaywrightCrawlOptions options, PlaywrightCrawlResult result, Stopwatch stopwatch)
     {
         if (options.MaxPages.HasValue && result.PagesVisited >= options.MaxPages.Value)
         {
@@ -397,8 +402,10 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
             double errorRate = domainState.Failures / (double)domainState.Attempts;
 
             if (errorRate > policy.ErrorRateThreshold)
+            {
                 PromoteToSlowModeOrCooldown(domainState, policy, now,
                     $"error rate {errorRate:P1} exceeded threshold {policy.ErrorRateThreshold:P1}");
+            }
         }
     }
 
@@ -441,6 +448,11 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         return elapsed >= required ? TimeSpan.Zero : required - elapsed;
     }
 
+    private static TimeSpan Max(TimeSpan first, TimeSpan second)
+    {
+        return first >= second ? first : second;
+    }
+
     private static bool IsRetryableStatusCode(int statusCode)
     {
         return statusCode is 408 or 500 or 502 or 503 or 504;
@@ -467,10 +479,5 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
         await Task.Delay(delayMs, cancellationToken)
                   .NoSync();
-    }
-
-    private static TimeSpan Max(TimeSpan first, TimeSpan second)
-    {
-        return first >= second ? first : second;
     }
 }
