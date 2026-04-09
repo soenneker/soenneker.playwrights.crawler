@@ -21,6 +21,7 @@ using Soenneker.Utils.File.Abstract;
 
 namespace Soenneker.Playwrights.Crawler.Utils;
 
+///<inheritdoc cref="IPlaywrightCrawlerStorage"/>
 internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 {
     private static readonly HttpClient _httpClient = CreateHttpClient();
@@ -75,10 +76,10 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                                    .NoSync();
     }
 
-    public async Task SaveRenderedDocument(Uri rootUri, Uri documentUri, string html, PlaywrightCrawlOptions options, PlaywrightCrawlResult result,
+    public async ValueTask SaveRenderedDocument(Uri rootUri, Uri documentUri, string html, PlaywrightCrawlOptions options, PlaywrightCrawlResult result,
         ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, CancellationToken cancellationToken)
     {
-        string htmlToSave = await FormatHtmlIfEnabled(html, options, cancellationToken)
+        string htmlToSave = await PrettyPrintHtmlIfEnabled(html, options, cancellationToken)
             .NoSync();
 
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(htmlToSave);
@@ -89,7 +90,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             .NoSync();
     }
 
-    public async Task<IReadOnlyDictionary<string, string>> SaveObservedResponses(IEnumerable<IResponse> responses, Uri rootUri, Uri mainDocumentUri,
+    public async ValueTask<IReadOnlyDictionary<string, string>> SaveObservedResponses(IEnumerable<IResponse> responses, Uri rootUri, Uri mainDocumentUri,
         PlaywrightCrawlOptions options, PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, Stopwatch stopwatch,
         CancellationToken cancellationToken)
     {
@@ -164,18 +165,18 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         return externalResources;
     }
 
-    public async Task RewriteExternalResourceUrlsInSavedDocument(Uri rootUri, Uri documentUri, string html,
+    public async ValueTask RewriteExternalResourceUrlsInSavedDocument(Uri rootUri, Uri documentUri, string html,
         IReadOnlyDictionary<string, string> externalResources, PlaywrightCrawlOptions options, PlaywrightCrawlResult result, AsyncLock resultLock,
         CancellationToken cancellationToken)
     {
         if (!options.IncludeCrossOriginAssets || externalResources.Count == 0)
             return;
 
-        string originalHtml = await FormatHtmlIfEnabled(html, options, cancellationToken)
+        string originalHtml = await PrettyPrintHtmlIfEnabled(html, options, cancellationToken)
             .NoSync();
 
         string rewrittenHtml = RewriteExternalResourceUrls(rootUri, documentUri, html, externalResources);
-        rewrittenHtml = await FormatHtmlIfEnabled(rewrittenHtml, options, cancellationToken)
+        rewrittenHtml = await PrettyPrintHtmlIfEnabled(rewrittenHtml, options, cancellationToken)
             .NoSync();
 
         if (string.Equals(rewrittenHtml, originalHtml, StringComparison.Ordinal))
@@ -535,12 +536,12 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         return rewritten;
     }
 
-    private async ValueTask<string> FormatHtmlIfEnabled(string html, PlaywrightCrawlOptions options, CancellationToken cancellationToken)
+    private async ValueTask<string> PrettyPrintHtmlIfEnabled(string html, PlaywrightCrawlOptions options, CancellationToken cancellationToken)
     {
-        if (!options.FormatHtml)
+        if (!options.PrettyPrintHtml)
             return html;
 
-        return await _htmlFormatter.Format(html, cancellationToken)
+        return await _htmlFormatter.PrettyPrint(html, cancellationToken)
                                    .NoSync();
     }
 

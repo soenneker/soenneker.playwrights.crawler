@@ -3,6 +3,7 @@ using Soenneker.Facts.Local;
 using Soenneker.Playwrights.Crawler.Abstract;
 using Soenneker.Playwrights.Crawler.Dtos;
 using Soenneker.Playwrights.Crawler.Enums;
+using Soenneker.Playwrights.Crawler.Utils.Abstract;
 using Soenneker.Tests.FixturedUnit;
 using Xunit;
 
@@ -12,10 +13,12 @@ namespace Soenneker.Playwrights.Crawler.Tests;
 public sealed class PlaywrightCrawlerTests : FixturedUnitTest
 {
     private readonly IPlaywrightCrawler _util;
+    private readonly IPlaywrightCrawlerPolicyUtil _policyUtil;
 
     public PlaywrightCrawlerTests(Fixture fixture, ITestOutputHelper output) : base(fixture, output)
     {
         _util = Resolve<IPlaywrightCrawler>(true);
+        _policyUtil = Resolve<IPlaywrightCrawlerPolicyUtil>(true);
     }
 
     [Fact]
@@ -29,8 +32,8 @@ public sealed class PlaywrightCrawlerTests : FixturedUnitTest
     {
         var options = new PlaywrightCrawlOptions
         {
-            Url = "https://blazorblueprintui.com/docs/introduction", Mode = PlaywrightCrawlMode.Full,
-            SaveDirectory = @"c:\blueprint", ClearSaveDirectory = true, ContinueOnPageError = true, Headless = true, SameHostOnly = true,
+            Url = "", Mode = PlaywrightCrawlMode.Full,
+            SaveDirectory = @"c:\quark", ClearSaveDirectory = true, ContinueOnPageError = true, Headless = true, SameHostOnly = true, PrettyPrintHtml = true,
             MaxDepth = 30
         };
 

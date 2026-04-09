@@ -69,7 +69,7 @@ public sealed class PlaywrightCrawlOptions
     /// <summary>
     /// Formats saved HTML documents with Soenneker.Html.Formatter when true.
     /// </summary>
-    public bool FormatHtml { get; set; }
+    public bool PrettyPrintHtml { get; set; }
 
     /// <summary>
     /// Deletes any existing output directory before crawling.

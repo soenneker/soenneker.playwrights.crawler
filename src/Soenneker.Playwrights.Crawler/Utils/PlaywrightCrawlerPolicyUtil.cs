@@ -227,7 +227,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         {
             domainState.Attempts++;
 
-            if (!success)
+            if (ShouldCountNavigationFailure(statusCode, success))
                 domainState.Failures++;
 
             domainState.RecentResponseTimesMs.Add(elapsedMs);
@@ -456,6 +456,17 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
     private static bool IsRetryableStatusCode(int statusCode)
     {
         return statusCode is 408 or 500 or 502 or 503 or 504;
+    }
+
+    private static bool ShouldCountNavigationFailure(int? statusCode, bool success)
+    {
+        if (success)
+            return false;
+
+        if (!statusCode.HasValue)
+            return true;
+
+        return statusCode.Value == 403 || statusCode.Value == 429 || IsRetryableStatusCode(statusCode.Value);
     }
 
     private static bool IsTransientNetworkFailure(PlaywrightException ex)
