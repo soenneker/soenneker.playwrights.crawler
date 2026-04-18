@@ -12,7 +12,8 @@ internal sealed class PlaywrightCrawlerBrowserUtil : IPlaywrightCrawlerBrowserUt
     {
         var launchOptions = new BrowserTypeLaunchOptions
         {
-            Headless = options.Headless
+            Headless = options.Headless,
+            Channel = options.Channel
         };
 
         if (options.UseStealth)

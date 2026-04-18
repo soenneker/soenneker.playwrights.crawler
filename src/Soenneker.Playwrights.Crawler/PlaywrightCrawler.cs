@@ -116,7 +116,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         await _playwrightInstallationUtil.EnsureInstalled(cancellationToken)
                                          .NoSync();
 
-        using IPlaywright playwright = await Microsoft.Playwright.Playwright.CreateAsync()
+        using IPlaywright playwright = await Playwright.CreateAsync()
                                                       .NoSync();
 
         await using IBrowser browser = await _browserUtil.CreateBrowser(playwright, options)

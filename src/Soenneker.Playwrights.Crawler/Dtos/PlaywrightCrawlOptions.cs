@@ -15,6 +15,8 @@ public sealed class PlaywrightCrawlOptions
     /// </summary>
     public required string Url { get; set; }
 
+    public string Channel { get; set; } = "chromium";
+
     /// <summary>
     /// Directory where the crawled output should be written.
     /// </summary>
