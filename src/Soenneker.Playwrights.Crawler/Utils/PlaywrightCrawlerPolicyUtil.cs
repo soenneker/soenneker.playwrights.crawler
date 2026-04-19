@@ -8,12 +8,15 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 using Soenneker.Asyncs.Locks;
 using Soenneker.Extensions.Task;
+using Soenneker.Extensions.ValueTask;
 using Soenneker.Playwrights.Crawler.Dtos;
 using Soenneker.Playwrights.Crawler.Enums;
 using Soenneker.Playwrights.Crawler.Utils.Abstract;
+using Soenneker.Utils.Random;
 
 namespace Soenneker.Playwrights.Crawler.Utils;
 
+///<inheritdoc cref="IPlaywrightCrawlerPolicyUtil"/>
 internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 {
     private readonly ILogger<PlaywrightCrawlerPolicyUtil> _logger;
@@ -23,12 +26,12 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         _logger = logger;
     }
 
-    public async Task<IResponse?> NavigateWithPolicy(IPage page, Uri targetUri, PlaywrightCrawlOptions options, CrawlerDomainState domainState,
+    public async ValueTask<IResponse?> NavigateWithPolicy(IPage page, Uri targetUri, PlaywrightCrawlOptions options, CrawlerDomainState domainState,
         SemaphoreSlim globalSemaphore, SemaphoreSlim ipSemaphore, CancellationToken cancellationToken)
     {
         PlaywrightCrawlPolicy policy = options.Policy ?? new PlaywrightCrawlPolicy();
 
-        for (var attempt = 0; ; attempt++)
+        for (var attempt = 0;; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -38,8 +41,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                     policy.MaxRetries + 1);
             }
 
-            await EnsureDomainRequestAllowed(domainState, policy, options.ThrottleMode, cancellationToken)
-                .NoSync();
+            await EnsureDomainRequestAllowed(domainState, policy, options.ThrottleMode, cancellationToken).NoSync();
 
             var globalAcquired = false;
             var domainAcquired = false;
@@ -47,16 +49,13 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
             try
             {
-                await globalSemaphore.WaitAsync(cancellationToken)
-                                     .NoSync();
+                await globalSemaphore.WaitAsync(cancellationToken).NoSync();
                 globalAcquired = true;
 
-                await ipSemaphore.WaitAsync(cancellationToken)
-                                 .NoSync();
+                await ipSemaphore.WaitAsync(cancellationToken).NoSync();
                 ipAcquired = true;
 
-                await AcquireDomainConcurrency(domainState, policy, options.ThrottleMode, cancellationToken)
-                    .NoSync();
+                await AcquireDomainConcurrency(domainState, policy, options.ThrottleMode, cancellationToken).NoSync();
                 domainAcquired = true;
 
                 var stopwatch = Stopwatch.StartNew();
@@ -67,21 +66,20 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                     {
                         Timeout = options.NavigationTimeoutMs,
                         WaitUntil = options.WaitUntil
-                    })
-                                                    .NoSync();
+                    }).NoSync();
 
                     stopwatch.Stop();
 
-                    RecordNavigationOutcome(domainState, policy, options.ThrottleMode, response?.Status, stopwatch.ElapsedMilliseconds,
-                        response?.Ok ?? false);
+                    await RecordNavigationOutcome(domainState, policy, options.ThrottleMode, response?.Status, stopwatch.ElapsedMilliseconds,
+                        response?.Ok ?? false, cancellationToken).NoSync();
 
                     if (response is not null && IsRetryableStatusCode(response.Status) && attempt < policy.MaxRetries)
                     {
-                        _logger.LogDebug("Navigation to {Url} returned retryable status {StatusCode} after {ElapsedMs}ms; backing off before retry {NextAttempt} of {TotalAttempts}",
+                        _logger.LogDebug(
+                            "Navigation to {Url} returned retryable status {StatusCode} after {ElapsedMs}ms; backing off before retry {NextAttempt} of {TotalAttempts}",
                             targetUri.AbsoluteUri, response.Status, stopwatch.ElapsedMilliseconds, attempt + 2, policy.MaxRetries + 1);
 
-                        await DelayRetry(targetUri, attempt, policy, cancellationToken)
-                            .NoSync();
+                        await DelayRetry(targetUri, attempt, policy, cancellationToken).NoSync();
                         continue;
                     }
 
@@ -90,14 +88,14 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                 catch (PlaywrightException ex) when (IsTransientNetworkFailure(ex) && attempt < policy.MaxRetries)
                 {
                     stopwatch.Stop();
-                    RecordNavigationOutcome(domainState, policy, options.ThrottleMode, null, stopwatch.ElapsedMilliseconds, success: false);
+                    await RecordNavigationOutcome(domainState, policy, options.ThrottleMode, null, stopwatch.ElapsedMilliseconds, success: false,
+                        cancellationToken).NoSync();
 
                     _logger.LogDebug(ex,
                         "Navigation to {Url} failed transiently after {ElapsedMs}ms; backing off before retry {NextAttempt} of {TotalAttempts}",
                         targetUri.AbsoluteUri, stopwatch.ElapsedMilliseconds, attempt + 2, policy.MaxRetries + 1);
 
-                    await DelayRetry(targetUri, attempt, policy, cancellationToken)
-                        .NoSync();
+                    await DelayRetry(targetUri, attempt, policy, cancellationToken).NoSync();
                 }
             }
             finally
@@ -106,7 +104,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                     ipSemaphore.Release();
 
                 if (domainAcquired)
-                    ReleaseDomainConcurrency(domainState);
+                    await ReleaseDomainConcurrency(domainState, cancellationToken).NoSync();
 
                 if (globalAcquired)
                     globalSemaphore.Release();
@@ -114,12 +112,12 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         }
     }
 
-    public async Task EnsureDomainRequestAllowed(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+    public async ValueTask EnsureDomainRequestAllowed(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
         CancellationToken cancellationToken)
     {
         if (throttleMode == PlaywrightCrawlThrottleMode.Disabled)
         {
-            using (domainState.StateLock.LockSync(cancellationToken))
+            using (await domainState.StateLock.Lock(cancellationToken).NoSync())
             {
                 domainState.LastRequestUtc = DateTimeOffset.UtcNow;
             }
@@ -127,28 +125,28 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
             return;
         }
 
-        using Releaser timingReleaser = await domainState.TimingLock.Lock(cancellationToken);
+        using Releaser timingReleaser = await domainState.TimingLock.Lock(cancellationToken).NoSync();
 
         while (true)
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            RefreshDomainMode(domainState, now);
+            await RefreshDomainMode(domainState, now, cancellationToken).NoSync();
 
             TimeSpan pageWait;
             TimeSpan wait;
             TimeSpan cooldownWait;
 
-            using (domainState.StateLock.LockSync(cancellationToken))
+            using (await domainState.StateLock.Lock(cancellationToken).NoSync())
             {
                 cooldownWait = domainState.Mode == CrawlerDomainMode.Cooldown && domainState.CooldownUntilUtc.HasValue && domainState.CooldownUntilUtc > now
                     ? domainState.CooldownUntilUtc.Value - now
                     : TimeSpan.Zero;
 
                 int requestDelayMs = domainState.Mode == CrawlerDomainMode.Slow
-                    ? policy.SlowModeMinimumDelayBetweenRequestsMs + Random.Shared.Next(policy.SlowModeDelayJitterMaxMs + 1)
-                    : policy.MinimumDelayBetweenRequestsMs + Random.Shared.Next(policy.DelayJitterMaxMs + 1);
+                    ? policy.SlowModeMinimumDelayBetweenRequestsMs + RandomUtil.Next(policy.SlowModeDelayJitterMaxMs + 1)
+                    : policy.MinimumDelayBetweenRequestsMs + RandomUtil.Next(policy.DelayJitterMaxMs + 1);
 
-                int pageDelayMs = Random.Shared.Next(policy.SameHostPageToPageDelayMinMs, policy.SameHostPageToPageDelayMaxMs + 1);
+                int pageDelayMs = RandomUtil.Next(policy.SameHostPageToPageDelayMinMs, policy.SameHostPageToPageDelayMaxMs + 1);
                 wait = ComputeRequiredWait(domainState.LastRequestUtc, requestDelayMs, now);
                 pageWait = ComputeRequiredWait(domainState.LastPageCompletedUtc, pageDelayMs, now);
             }
@@ -162,12 +160,11 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                     domainState.DomainKey, (int)effectiveWait.TotalMilliseconds, domainState.Mode, (int)cooldownWait.TotalMilliseconds,
                     (int)wait.TotalMilliseconds, (int)pageWait.TotalMilliseconds);
 
-                await Task.Delay(effectiveWait, cancellationToken)
-                          .NoSync();
+                await Task.Delay(effectiveWait, cancellationToken).NoSync();
                 continue;
             }
 
-            using (domainState.StateLock.LockSync(cancellationToken))
+            using (await domainState.StateLock.Lock(cancellationToken).NoSync())
             {
                 domainState.LastRequestUtc = DateTimeOffset.UtcNow;
             }
@@ -176,17 +173,16 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         }
     }
 
-    public async Task AcquireDomainConcurrency(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+    public async ValueTask AcquireDomainConcurrency(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
         CancellationToken cancellationToken)
     {
-        await domainState.ConcurrencySemaphore.WaitAsync(cancellationToken)
-                         .NoSync();
+        await domainState.ConcurrencySemaphore.WaitAsync(cancellationToken).NoSync();
 
         try
         {
             if (throttleMode == PlaywrightCrawlThrottleMode.Disabled)
             {
-                using (domainState.StateLock.LockSync(cancellationToken))
+                using (await domainState.StateLock.Lock(cancellationToken).NoSync())
                 {
                     domainState.ActiveCount++;
                 }
@@ -200,7 +196,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                using (domainState.StateLock.LockSync(cancellationToken))
+                using (await domainState.StateLock.Lock(cancellationToken).NoSync())
                 {
                     DateTimeOffset now = DateTimeOffset.UtcNow;
                     RefreshDomainModeUnsafe(domainState, now);
@@ -222,8 +218,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                 spinCount++;
                 int delayMs = spinCount < 10 ? 25 : 100;
 
-                await Task.Delay(delayMs, cancellationToken)
-                          .NoSync();
+                await Task.Delay(delayMs, cancellationToken).NoSync();
             }
         }
         catch
@@ -233,9 +228,9 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         }
     }
 
-    public void ReleaseDomainConcurrency(CrawlerDomainState domainState)
+    public async ValueTask ReleaseDomainConcurrency(CrawlerDomainState domainState, CancellationToken cancellationToken)
     {
-        using (domainState.StateLock.LockSync())
+        using (await domainState.StateLock.Lock(cancellationToken).NoSync())
         {
             if (domainState.ActiveCount > 0)
                 domainState.ActiveCount--;
@@ -244,10 +239,10 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         domainState.ConcurrencySemaphore.Release();
     }
 
-    public void RecordNavigationOutcome(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
-        int? statusCode, long elapsedMs, bool success)
+    public async ValueTask RecordNavigationOutcome(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+        int? statusCode, long elapsedMs, bool success, CancellationToken cancellationToken)
     {
-        using (domainState.StateLock.LockSync())
+        using (await domainState.StateLock.Lock(cancellationToken).NoSync())
         {
             domainState.Attempts++;
 
@@ -277,12 +272,12 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         }
     }
 
-    public void HandleBlockingSignal(ILogger logger, CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
-        int statusCode, string reason)
+    public async ValueTask HandleBlockingSignal(ILogger logger, CrawlerDomainState domainState, PlaywrightCrawlPolicy policy,
+        PlaywrightCrawlThrottleMode throttleMode, int statusCode, string reason, CancellationToken cancellationToken)
     {
         logger.LogWarning("Domain blocking signal detected for {DomainKey}: {Reason} (status {StatusCode})", domainState.DomainKey, reason, statusCode);
 
-        using (domainState.StateLock.LockSync())
+        using (await domainState.StateLock.Lock(cancellationToken).NoSync())
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
 
@@ -302,31 +297,32 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         }
     }
 
-    public void RecordDuplicatePage(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy)
+    public async ValueTask RecordDuplicatePage(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, CancellationToken cancellationToken)
     {
-        using (domainState.StateLock.LockSync())
+        using (await domainState.StateLock.Lock(cancellationToken).NoSync())
         {
             domainState.DuplicatePages++;
         }
 
         if (policy.DuplicatePageThreshold > 0 && domainState.DuplicatePages == policy.DuplicatePageThreshold)
         {
-            _logger.LogWarning("Domain {DomainKey} reached duplicate page threshold ({DuplicatePages}). Duplicate pages no longer trigger slow mode automatically.",
+            _logger.LogWarning(
+                "Domain {DomainKey} reached duplicate page threshold ({DuplicatePages}). Duplicate pages no longer trigger slow mode automatically.",
                 domainState.DomainKey, domainState.DuplicatePages);
         }
     }
 
-    public void MarkPageCompleted(CrawlerDomainState domainState)
+    public async ValueTask MarkPageCompleted(CrawlerDomainState domainState, CancellationToken cancellationToken)
     {
-        using (domainState.StateLock.LockSync())
+        using (await domainState.StateLock.Lock(cancellationToken).NoSync())
         {
             domainState.LastPageCompletedUtc = DateTimeOffset.UtcNow;
         }
     }
 
-    public void RefreshDomainMode(CrawlerDomainState domainState, DateTimeOffset now)
+    public async ValueTask RefreshDomainMode(CrawlerDomainState domainState, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        using (domainState.StateLock.LockSync())
+        using (await domainState.StateLock.Lock(cancellationToken).NoSync())
         {
             RefreshDomainModeUnsafe(domainState, now);
         }
@@ -337,10 +333,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         if (options.PostNavigationDelayMs > 0)
             return options.PostNavigationDelayMs;
 
-        if (options.ThrottleMode == PlaywrightCrawlThrottleMode.Disabled)
-            return 0;
-
-        return Random.Shared.Next(policy.PostNavigationJitterMinMs, policy.PostNavigationJitterMaxMs + 1);
+        return RandomUtil.Next(policy.PostNavigationJitterMinMs, policy.PostNavigationJitterMaxMs + 1);
     }
 
     public int GetWorkerCount(PlaywrightCrawlOptions options, PlaywrightCrawlPolicy policy)
@@ -433,15 +426,14 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
             if (errorRate > policy.ErrorRateThreshold)
             {
-                PromoteToSlowModeOrCooldown(domainState, policy, now,
-                    $"error rate {errorRate:P1} exceeded threshold {policy.ErrorRateThreshold:P1}");
+                PromoteToSlowModeOrCooldown(domainState, policy, now, $"error rate {errorRate:P1} exceeded threshold {policy.ErrorRateThreshold:P1}");
             }
         }
     }
 
     private void PromoteToSlowModeOrCooldown(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, DateTimeOffset now, string reason)
     {
-        if (domainState.Mode == CrawlerDomainMode.Slow)
+        if (ReferenceEquals(domainState.Mode, CrawlerDomainMode.Slow))
         {
             domainState.Mode = CrawlerDomainMode.Cooldown;
             domainState.CooldownUntilUtc = now.AddMilliseconds(policy.CooldownDurationMs);
@@ -513,12 +505,11 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         int multiplier = 1 << attempt;
         int baseDelayMs = policy.RetryBaseDelayMs * multiplier;
         int jitterMaxMs = Math.Max(1, baseDelayMs / 2);
-        int jitterMs = Random.Shared.Next(jitterMaxMs + 1);
+        int jitterMs = RandomUtil.Next(jitterMaxMs + 1);
         int delayMs = baseDelayMs + jitterMs;
 
         _logger.LogDebug("Delaying retry for {Url} by {DelayMs}ms (attempt index {AttemptIndex})", targetUri.AbsoluteUri, delayMs, attempt);
 
-        await Task.Delay(delayMs, cancellationToken)
-                  .NoSync();
+        await Task.Delay(delayMs, cancellationToken).NoSync();
     }
 }

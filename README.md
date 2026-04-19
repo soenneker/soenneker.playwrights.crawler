@@ -87,6 +87,7 @@ PlaywrightCrawlResult result = await crawler.Crawl(new PlaywrightCrawlOptions
     UseStealth = true,
     ThrottleMode = PlaywrightCrawlThrottleMode.Automatic,
     NavigationTimeoutMs = 45_000,
+    WaitUntil = WaitUntilState.NetworkIdle,
     PostNavigationDelayMs = 0,
     ContinueOnPageError = true,
     StealthLaunchOptions = new StealthLaunchOptions
@@ -147,6 +148,7 @@ Saves:
 | `UseStealth` | Enables the Soenneker stealth Playwright extensions. |
 | `ThrottleMode` | Controls automatic pacing and adaptive throttling. Defaults to `Automatic`; use `Disabled` to bypass automatic pacing, slow mode, cooldown waiting, and implicit post-navigation jitter. |
 | `NavigationTimeoutMs` | Navigation timeout per page. |
+| `WaitUntil` | Playwright load state awaited during navigation. Defaults to `NetworkIdle`. |
 | `PostNavigationDelayMs` | Extra delay after navigation to allow late assets to settle. |
 | `ContinueOnPageError` | Continues crawling after an individual page fails. |
 | `Policy` | Crawl throttling, retries, concurrency, slow mode, and cooldown configuration. |

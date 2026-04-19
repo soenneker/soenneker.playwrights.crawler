@@ -72,22 +72,19 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         if (!_createdDirectories.TryAdd(directory, 0))
             return true;
 
-        return await _directoryUtil.Create(directory, true, cancellationToken)
-                                   .NoSync();
+        return await _directoryUtil.Create(directory, true, cancellationToken).NoSync();
     }
 
     public async ValueTask SaveRenderedDocument(Uri rootUri, Uri documentUri, string html, PlaywrightCrawlOptions options, PlaywrightCrawlResult result,
         ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, CancellationToken cancellationToken)
     {
-        string htmlToSave = await PrettyPrintHtmlIfEnabled(html, options, cancellationToken)
-            .NoSync();
+        string htmlToSave = await PrettyPrintHtmlIfEnabled(html, options, cancellationToken).NoSync();
 
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(htmlToSave);
         string relativePath = _urlUtil.BuildRelativePath(rootUri, documentUri, isHtmlDocument: true, contentType: "text/html");
 
         await SaveFile(documentUri.AbsoluteUri, relativePath, bytes, isHtmlDocument: true, "text/html", options, result, savedUrls, resultLock,
-                cancellationToken)
-            .NoSync();
+            cancellationToken).NoSync();
     }
 
     public async ValueTask<IReadOnlyDictionary<string, string>> SaveObservedResponses(IEnumerable<IResponse> responses, Uri rootUri, Uri mainDocumentUri,
@@ -130,8 +127,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             if (ShouldDirectDownload(resourceUri, contentType))
             {
                 resourceAvailable = await SaveByDirectDownload(normalizedUrl, relativePath, isHtmlDocument, contentType, options, result, savedUrls, resultLock,
-                        cancellationToken)
-                    .NoSync();
+                    cancellationToken).NoSync();
             }
             else
             {
@@ -139,8 +135,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 
                 try
                 {
-                    body = await response.BodyAsync()
-                                         .NoSync();
+                    body = await response.BodyAsync().NoSync();
                 }
                 catch (Exception ex)
                 {
@@ -154,8 +149,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                     continue;
 
                 resourceAvailable = await SaveFile(normalizedUrl, relativePath, body, isHtmlDocument, contentType, options, result, savedUrls, resultLock,
-                        cancellationToken)
-                    .NoSync();
+                    cancellationToken).NoSync();
             }
 
             if (resourceAvailable && !isHtmlDocument && !_urlUtil.UrisShareHost(rootUri, resourceUri))
@@ -172,12 +166,10 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         if (!options.IncludeCrossOriginAssets || externalResources.Count == 0)
             return;
 
-        string originalHtml = await PrettyPrintHtmlIfEnabled(html, options, cancellationToken)
-            .NoSync();
+        string originalHtml = await PrettyPrintHtmlIfEnabled(html, options, cancellationToken).NoSync();
 
         string rewrittenHtml = RewriteExternalResourceUrls(rootUri, documentUri, html, externalResources);
-        rewrittenHtml = await PrettyPrintHtmlIfEnabled(rewrittenHtml, options, cancellationToken)
-            .NoSync();
+        rewrittenHtml = await PrettyPrintHtmlIfEnabled(rewrittenHtml, options, cancellationToken).NoSync();
 
         if (string.Equals(rewrittenHtml, originalHtml, StringComparison.Ordinal))
             return;
@@ -187,8 +179,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         byte[] rewrittenBytes = System.Text.Encoding.UTF8.GetBytes(rewrittenHtml);
         long sizeDelta = rewrittenBytes.LongLength - System.Text.Encoding.UTF8.GetByteCount(originalHtml);
 
-        using (await resultLock.Lock(cancellationToken)
-                               .NoSync())
+        using (await resultLock.Lock(cancellationToken).NoSync())
         {
             if (sizeDelta > 0 && options.MaxStorageBytes.HasValue && result.BytesWritten + sizeDelta > options.MaxStorageBytes.Value)
             {
@@ -206,11 +197,9 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                 file.SizeBytes = rewrittenBytes.LongLength;
         }
 
-        await EnsureDirectoryForFile(fullPath, cancellationToken)
-            .NoSync();
+        await EnsureDirectoryForFile(fullPath, cancellationToken).NoSync();
 
-        await _fileUtil.Write(fullPath, rewrittenBytes, log: true, cancellationToken)
-                       .NoSync();
+        await _fileUtil.Write(fullPath, rewrittenBytes, log: true, cancellationToken).NoSync();
     }
 
     public async ValueTask<bool> SaveFile(string url, string relativePath, byte[] bytes, bool isHtmlDocument, string? contentType,
@@ -221,8 +210,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 
         if (!savedUrls.TryAdd(url, 0))
         {
-            using (await resultLock.Lock(cancellationToken)
-                                   .NoSync())
+            using (await resultLock.Lock(cancellationToken).NoSync())
             {
                 result.Files.Add(new PlaywrightCrawlFileResult
                 {
@@ -238,8 +226,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             return true;
         }
 
-        using (await resultLock.Lock(cancellationToken)
-                               .NoSync())
+        using (await resultLock.Lock(cancellationToken).NoSync())
         {
             if (options.MaxStorageBytes.HasValue && result.BytesWritten + bytes.LongLength > options.MaxStorageBytes.Value)
             {
@@ -258,11 +245,9 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             }
         }
 
-        if (!options.OverwriteExistingFiles && await _fileUtil.Exists(fullPath, cancellationToken)
-                                                              .NoSync())
+        if (!options.OverwriteExistingFiles && await _fileUtil.Exists(fullPath, cancellationToken).NoSync())
         {
-            using (await resultLock.Lock(cancellationToken)
-                                   .NoSync())
+            using (await resultLock.Lock(cancellationToken).NoSync())
             {
                 result.Files.Add(new PlaywrightCrawlFileResult
                 {
@@ -278,14 +263,11 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             return true;
         }
 
-        await EnsureDirectoryForFile(fullPath, cancellationToken)
-            .NoSync();
+        await EnsureDirectoryForFile(fullPath, cancellationToken).NoSync();
 
-        await _fileUtil.Write(fullPath, bytes, log: true, cancellationToken)
-                       .NoSync();
+        await _fileUtil.Write(fullPath, bytes, log: true, cancellationToken).NoSync();
 
-        using (await resultLock.Lock(cancellationToken)
-                               .NoSync())
+        using (await resultLock.Lock(cancellationToken).NoSync())
         {
             result.BytesWritten += bytes.LongLength;
 
@@ -316,8 +298,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 
         if (!savedUrls.TryAdd(url, 0))
         {
-            using (await resultLock.Lock(cancellationToken)
-                                   .NoSync())
+            using (await resultLock.Lock(cancellationToken).NoSync())
             {
                 result.Files.Add(new PlaywrightCrawlFileResult
                 {
@@ -333,8 +314,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             return true;
         }
 
-        using (await resultLock.Lock(cancellationToken)
-                               .NoSync())
+        using (await resultLock.Lock(cancellationToken).NoSync())
         {
             if (options.MaxStorageBytes.HasValue && result.BytesWritten >= options.MaxStorageBytes.Value)
             {
@@ -353,11 +333,9 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             }
         }
 
-        if (!options.OverwriteExistingFiles && await _fileUtil.Exists(fullPath, cancellationToken)
-                                                              .NoSync())
+        if (!options.OverwriteExistingFiles && await _fileUtil.Exists(fullPath, cancellationToken).NoSync())
         {
-            using (await resultLock.Lock(cancellationToken)
-                                   .NoSync())
+            using (await resultLock.Lock(cancellationToken).NoSync())
             {
                 result.Files.Add(new PlaywrightCrawlFileResult
                 {
@@ -377,13 +355,11 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
-            using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                                                                  .NoSync();
+            using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).NoSync();
 
             if (!response.IsSuccessStatusCode)
             {
-                using (await resultLock.Lock(cancellationToken)
-                                       .NoSync())
+                using (await resultLock.Lock(cancellationToken).NoSync())
                 {
                     result.Files.Add(new PlaywrightCrawlFileResult
                     {
@@ -401,8 +377,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 
             long? contentLength = response.Content.Headers.ContentLength;
 
-            using (await resultLock.Lock(cancellationToken)
-                                   .NoSync())
+            using (await resultLock.Lock(cancellationToken).NoSync())
             {
                 if (contentLength.HasValue && options.MaxStorageBytes.HasValue && result.BytesWritten + contentLength.Value > options.MaxStorageBytes.Value)
                 {
@@ -421,11 +396,9 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                 }
             }
 
-            await EnsureDirectoryForFile(fullPath, cancellationToken)
-                .NoSync();
+            await EnsureDirectoryForFile(fullPath, cancellationToken).NoSync();
 
-            await using Stream httpStream = await response.Content.ReadAsStreamAsync(cancellationToken)
-                                                          .NoSync();
+            await using Stream httpStream = await response.Content.ReadAsStreamAsync(cancellationToken).NoSync();
 
             await using Stream fileStream = _fileUtil.OpenWrite(fullPath, log: true);
 
@@ -434,14 +407,12 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 
             while (true)
             {
-                int read = await httpStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)
-                                           .NoSync();
+                int read = await httpStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).NoSync();
 
                 if (read == 0)
                     break;
 
-                using (await resultLock.Lock(cancellationToken)
-                                       .NoSync())
+                using (await resultLock.Lock(cancellationToken).NoSync())
                 {
                     if (options.MaxStorageBytes.HasValue && result.BytesWritten + bytesWritten + read > options.MaxStorageBytes.Value)
                     {
@@ -460,17 +431,14 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                     }
                 }
 
-                await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
-                                .NoSync();
+                await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken).NoSync();
 
                 bytesWritten += read;
             }
 
-            await fileStream.FlushAsync(cancellationToken)
-                            .NoSync();
+            await fileStream.FlushAsync(cancellationToken).NoSync();
 
-            using (await resultLock.Lock(cancellationToken)
-                                   .NoSync())
+            using (await resultLock.Lock(cancellationToken).NoSync())
             {
                 result.BytesWritten += bytesWritten;
 
@@ -496,8 +464,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         {
             _logger.LogDebug(ex, "Direct download failed for {Url}", url);
 
-            using (await resultLock.Lock(cancellationToken)
-                                   .NoSync())
+            using (await resultLock.Lock(cancellationToken).NoSync())
             {
                 result.Files.Add(new PlaywrightCrawlFileResult
                 {
@@ -541,8 +508,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         if (!options.PrettyPrintHtml)
             return html;
 
-        return await _htmlFormatter.PrettyPrint(html, cancellationToken)
-                                   .NoSync();
+        return await _htmlFormatter.PrettyPrint(html, cancellationToken).NoSync();
     }
 
     private async ValueTask EnsureDirectoryForFile(string fullPath, CancellationToken cancellationToken)
@@ -555,8 +521,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         if (!_createdDirectories.TryAdd(directory, 0))
             return;
 
-        await _directoryUtil.Create(directory, true, cancellationToken)
-                            .NoSync();
+        await _directoryUtil.Create(directory, true, cancellationToken).NoSync();
     }
 
     private static string BuildDocumentRelativeReference(string documentDirectory, string targetRelativePath)
@@ -564,8 +529,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         string baseDirectory = documentDirectory.HasContent() ? documentDirectory : ".";
         string relativePath = Path.GetRelativePath(baseDirectory, targetRelativePath);
 
-        return relativePath.Replace(Path.DirectorySeparatorChar, '/')
-                           .Replace(Path.AltDirectorySeparatorChar, '/');
+        return relativePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
     }
 
     private static string? TryGetHeaderValue(IReadOnlyDictionary<string, string> headers, string key)
@@ -612,8 +576,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
     {
         if (contentType is not null)
         {
-            string normalized = contentType.Split(';', 2, StringSplitOptions.TrimEntries)[0]
-                                           .Trim();
+            string normalized = contentType.Split(';', 2, StringSplitOptions.TrimEntries)[0].Trim();
 
             if (_directDownloadContentTypes.Contains(normalized))
                 return true;

@@ -73,12 +73,10 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
         if (options.ClearSaveDirectory)
         {
-            await _storage.DeleteDirectory(saveDirectory, cancellationToken)
-                          .NoSync();
+            await _storage.DeleteDirectory(saveDirectory, cancellationToken).NoSync();
         }
 
-        await _storage.CreateDirectory(saveDirectory, cancellationToken)
-                      .NoSync();
+        await _storage.CreateDirectory(saveDirectory, cancellationToken).NoSync();
 
         var result = new PlaywrightCrawlResult
         {
@@ -91,8 +89,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         var stopwatch = Stopwatch.StartNew();
         var visitedPages = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         var queuedPages = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
-        queuedPages.TryAdd(_urlUtil.NormalizePageUrl(rootUri, options.IgnoreQueryStringsInDuplicateDetection)
-                                   .AbsoluteUri, 0);
+        queuedPages.TryAdd(_urlUtil.NormalizePageUrl(rootUri, options.IgnoreQueryStringsInDuplicateDetection).AbsoluteUri, 0);
 
         var savedUrls = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         var globalSemaphore = new SemaphoreSlim(policy.GlobalMaxConcurrency, policy.GlobalMaxConcurrency);
@@ -113,17 +110,13 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
         frontier.Writer.TryWrite(new CrawlTarget(rootUri, 0));
 
-        await _playwrightInstallationUtil.EnsureInstalled(cancellationToken)
-                                         .NoSync();
+        await _playwrightInstallationUtil.EnsureInstalled(cancellationToken).NoSync();
 
-        using IPlaywright playwright = await Playwright.CreateAsync()
-                                                      .NoSync();
+        using IPlaywright playwright = await Playwright.CreateAsync().NoSync();
 
-        await using IBrowser browser = await _browserUtil.CreateBrowser(playwright, options)
-                                                         .NoSync();
+        await using IBrowser browser = await _browserUtil.CreateBrowser(playwright, options).NoSync();
 
-        await using IBrowserContext context = await _browserUtil.CreateBrowserContext(browser, options)
-                                                                .NoSync();
+        await using IBrowserContext context = await _browserUtil.CreateBrowserContext(browser, options).NoSync();
 
         await using var resultLock = new AsyncLock();
 
@@ -143,8 +136,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                         if (_policyUtil.ShouldStop(options, result, stopwatch))
                             continue;
 
-                        string normalizedTarget = _urlUtil.NormalizePageUrl(target.Uri, options.IgnoreQueryStringsInDuplicateDetection)
-                                                          .AbsoluteUri;
+                        string normalizedTarget = _urlUtil.NormalizePageUrl(target.Uri, options.IgnoreQueryStringsInDuplicateDetection).AbsoluteUri;
 
                         // Once a worker owns it, it is no longer merely queued.
                         queuedPages.TryRemove(normalizedTarget, out _);
@@ -154,18 +146,17 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                             CrawlerDomainState duplicateDomainState = domainStates.GetOrAdd(_urlUtil.GetDomainKey(target.Uri),
                                 key => new CrawlerDomainState(key, policy.PerDomainMaxConcurrency));
 
-                            _policyUtil.RecordDuplicatePage(duplicateDomainState, policy);
+                            await _policyUtil.RecordDuplicatePage(duplicateDomainState, policy, cancellationToken).NoSync();
                             continue;
                         }
 
-                        using (resultLock.LockSync(cancellationToken))
+                        using (await resultLock.Lock(cancellationToken).NoSync())
                         {
                             result.PagesVisited++;
                         }
 
                         await CrawlPage(context, rootUri, target, options, result, queuedPages, visitedPages, savedUrls, frontier.Writer, pendingCounter,
-                                stopwatch, globalSemaphore, domainStates, ipSemaphores, resultLock, cancellationToken)
-                            .NoSync();
+                            stopwatch, globalSemaphore, domainStates, ipSemaphores, resultLock, cancellationToken).NoSync();
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {
@@ -175,8 +166,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                     {
                         _logger.LogError(ex, "Failed to crawl page {Url}", target.Uri.AbsoluteUri);
 
-                        using (await resultLock.Lock(cancellationToken)
-                                               .NoSync())
+                        using (await resultLock.Lock(cancellationToken).NoSync())
                         {
                             result.Errors.Add(new PlaywrightCrawlError
                             {
@@ -201,8 +191,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
             }, cancellationToken);
         }
 
-        await Task.WhenAll(workers)
-                  .NoSync();
+        await Task.WhenAll(workers).NoSync();
 
         stopwatch.Stop();
 
@@ -226,13 +215,11 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         string domainKey = _urlUtil.GetDomainKey(target.Uri);
         CrawlerDomainState domainState = domainStates.GetOrAdd(domainKey, key => new CrawlerDomainState(key, policy.PerDomainMaxConcurrency));
 
-        string ipKey = await _urlUtil.ResolveIpKey(target.Uri, cancellationToken)
-                                     .NoSync();
+        string ipKey = await _urlUtil.ResolveIpKey(target.Uri, cancellationToken).NoSync();
 
         SemaphoreSlim ipSemaphore = ipSemaphores.GetOrAdd(ipKey, _ => new SemaphoreSlim(policy.PerIpMaxConcurrency, policy.PerIpMaxConcurrency));
 
-        IPage page = await context.NewPageAsync()
-                                  .NoSync();
+        IPage page = await context.NewPageAsync().NoSync();
 
         page.SetDefaultNavigationTimeout(options.NavigationTimeoutMs);
         page.SetDefaultTimeout(policy.RequestTimeoutMs);
@@ -258,37 +245,33 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
             _logger.LogDebug("Navigating to {Url} at depth {Depth}", target.Uri.AbsoluteUri, target.Depth);
 
             IResponse? navigationResponse = await _policyUtil.NavigateWithPolicy(page, target.Uri, options, domainState, globalSemaphore, ipSemaphore,
-                                                                 cancellationToken)
-                                                             .NoSync();
+                cancellationToken).NoSync();
 
             int postNavigationDelayMs = _policyUtil.GetPostNavigationDelayMs(options, policy);
 
             if (postNavigationDelayMs > 0)
-                await page.WaitForTimeoutAsync(postNavigationDelayMs)
-                          .NoSync();
+                await page.WaitForTimeoutAsync(postNavigationDelayMs).NoSync();
 
             Uri finalUri = _urlUtil.ValidateAndNormalizeRootUrl(page.Url);
 
-            visitedPages.TryAdd(_urlUtil.NormalizePageUrl(finalUri, options.IgnoreQueryStringsInDuplicateDetection)
-                                        .AbsoluteUri, 0);
+            visitedPages.TryAdd(_urlUtil.NormalizePageUrl(finalUri, options.IgnoreQueryStringsInDuplicateDetection).AbsoluteUri, 0);
 
-            string title = await page.TitleAsync()
-                                     .NoSync();
+            string title = await page.TitleAsync().NoSync();
 
-            string html = await page.ContentAsync()
-                                    .NoSync();
+            string html = await page.ContentAsync().NoSync();
 
             if (_urlUtil.IsChallengePage(title, html))
             {
-                _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, 429, "challenge/captcha page detected");
+                await _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, 429, "challenge/captcha page detected",
+                    cancellationToken).NoSync();
             }
             else if (navigationResponse?.Status == 403)
             {
-                _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, 403, "403 response received");
+                await _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, 403, "403 response received", cancellationToken)
+                                 .NoSync();
             }
 
-            await _storage.SaveRenderedDocument(rootUri, finalUri, html, options, result, savedUrls, resultLock, cancellationToken)
-                          .NoSync();
+            await _storage.SaveRenderedDocument(rootUri, finalUri, html, options, result, savedUrls, resultLock, cancellationToken).NoSync();
 
             if (options.Mode == PlaywrightCrawlMode.Full)
             {
@@ -299,23 +282,19 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                     responseSnapshot = [.. responses];
                 }
 
-                IReadOnlyDictionary<string, string> externalResources = await _storage
-                                                                              .SaveObservedResponses(responseSnapshot, rootUri, finalUri, options, result,
-                                                                                  savedUrls, resultLock, stopwatch, cancellationToken)
-                                                                              .NoSync();
+                IReadOnlyDictionary<string, string> externalResources = await _storage.SaveObservedResponses(responseSnapshot, rootUri, finalUri, options,
+                    result, savedUrls, resultLock, stopwatch, cancellationToken).NoSync();
 
                 if (options.RewriteCrossOriginAssetUrls && externalResources.Count > 0)
                 {
                     await _storage.RewriteExternalResourceUrlsInSavedDocument(rootUri, finalUri, html, externalResources, options, result, resultLock,
-                                      cancellationToken)
-                                  .NoSync();
+                        cancellationToken).NoSync();
                 }
             }
 
             if (target.Depth < options.MaxDepth && !_policyUtil.ShouldStop(options, result, stopwatch))
             {
-                IReadOnlyList<string> discoveredLinks = await _urlUtil.GetPageLinks(page)
-                                                                      .NoSync();
+                IReadOnlyList<string> discoveredLinks = await _urlUtil.GetPageLinks(page).NoSync();
 
                 foreach (string link in discoveredLinks)
                 {
@@ -328,36 +307,32 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                     if (!_urlUtil.ShouldQueuePage(rootUri, linkUri, options))
                         continue;
 
-                    string normalizedLink = _urlUtil.NormalizePageUrl(linkUri, options.IgnoreQueryStringsInDuplicateDetection)
-                                                    .AbsoluteUri;
+                    string normalizedLink = _urlUtil.NormalizePageUrl(linkUri, options.IgnoreQueryStringsInDuplicateDetection).AbsoluteUri;
 
                     if (visitedPages.ContainsKey(normalizedLink) || !queuedPages.TryAdd(normalizedLink, 0))
                     {
-                        _policyUtil.RecordDuplicatePage(domainState, policy);
+                        await _policyUtil.RecordDuplicatePage(domainState, policy, cancellationToken).NoSync();
                         continue;
                     }
 
                     Interlocked.Increment(ref pendingCounter.Count);
 
-                    await writer.WriteAsync(new CrawlTarget(linkUri, target.Depth + 1), cancellationToken)
-                                .NoSync();
+                    await writer.WriteAsync(new CrawlTarget(linkUri, target.Depth + 1), cancellationToken).NoSync();
 
-                    using (await resultLock.Lock(cancellationToken)
-                                           .NoSync())
+                    using (await resultLock.Lock(cancellationToken).NoSync())
                     {
                         result.PagesDiscovered++;
                     }
                 }
             }
 
-            _policyUtil.MarkPageCompleted(domainState);
+            await _policyUtil.MarkPageCompleted(domainState, cancellationToken).NoSync();
         }
         finally
         {
             page.Response -= ResponseHandler;
 
-            await page.CloseAsync()
-                      .NoSync();
+            await page.CloseAsync().NoSync();
         }
     }
 }

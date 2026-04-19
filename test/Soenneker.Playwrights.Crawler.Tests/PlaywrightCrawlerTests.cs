@@ -16,11 +16,13 @@ public sealed class PlaywrightCrawlerTests : FixturedUnitTest
 {
     private readonly IPlaywrightCrawler _util;
     private readonly IPlaywrightCrawlerPolicyUtil _policyUtil;
+    private readonly IPlaywrightCrawlerUrlUtil _urlUtil;
 
     public PlaywrightCrawlerTests(Fixture fixture, ITestOutputHelper output) : base(fixture, output)
     {
         _util = Resolve<IPlaywrightCrawler>(true);
         _policyUtil = Resolve<IPlaywrightCrawlerPolicyUtil>(true);
+        _urlUtil = Resolve<IPlaywrightCrawlerUrlUtil>(true);
     }
 
     [Fact]
@@ -63,14 +65,24 @@ public sealed class PlaywrightCrawlerTests : FixturedUnitTest
         Assert.True(domainState.LastRequestUtc.HasValue);
     }
 
+    [Fact]
+    public void TryNormalizeHttpUrl_rejects_unresolved_template_urls()
+    {
+        bool result = _urlUtil.TryNormalizeHttpUrl("https://localhost:7040/%BASE_URL%25", out Uri? uri);
+
+        Assert.False(result);
+        Assert.Null(uri);
+    }
+
     //[ManualFact]
     [LocalFact]
     public async ValueTask Test()
     {
         var options = new PlaywrightCrawlOptions
         {
-            Url = "https://localhost:7040/", Mode = PlaywrightCrawlMode.HtmlOnly,
+            Url = "https://localhost:7040/", Mode = PlaywrightCrawlMode.HtmlOnly, ThrottleMode = PlaywrightCrawlThrottleMode.Disabled,
             SaveDirectory = @"c:\quark", ClearSaveDirectory = true, ContinueOnPageError = true, Headless = true, SameHostOnly = true, PrettyPrintHtml = true,
+            
             MaxDepth = 30
         };
 

@@ -10,28 +10,28 @@ namespace Soenneker.Playwrights.Crawler.Utils.Abstract;
 
 public interface IPlaywrightCrawlerPolicyUtil
 {
-    Task<IResponse?> NavigateWithPolicy(IPage page, Uri targetUri, PlaywrightCrawlOptions options, CrawlerDomainState domainState,
+    ValueTask<IResponse?> NavigateWithPolicy(IPage page, Uri targetUri, PlaywrightCrawlOptions options, CrawlerDomainState domainState,
         SemaphoreSlim globalSemaphore, SemaphoreSlim ipSemaphore, CancellationToken cancellationToken);
 
-    Task EnsureDomainRequestAllowed(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+    ValueTask EnsureDomainRequestAllowed(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
         CancellationToken cancellationToken);
 
-    Task AcquireDomainConcurrency(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+    ValueTask AcquireDomainConcurrency(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
         CancellationToken cancellationToken);
 
-    void ReleaseDomainConcurrency(CrawlerDomainState domainState);
+    ValueTask ReleaseDomainConcurrency(CrawlerDomainState domainState, CancellationToken cancellationToken);
 
-    void RecordNavigationOutcome(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode, int? statusCode,
-        long elapsedMs, bool success);
+    ValueTask RecordNavigationOutcome(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode, int? statusCode,
+        long elapsedMs, bool success, CancellationToken cancellationToken);
 
-    void HandleBlockingSignal(ILogger logger, CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
-        int statusCode, string reason);
+    ValueTask HandleBlockingSignal(ILogger logger, CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+        int statusCode, string reason, CancellationToken cancellationToken);
 
-    void RecordDuplicatePage(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy);
+    ValueTask RecordDuplicatePage(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, CancellationToken cancellationToken);
 
-    void MarkPageCompleted(CrawlerDomainState domainState);
+    ValueTask MarkPageCompleted(CrawlerDomainState domainState, CancellationToken cancellationToken);
 
-    void RefreshDomainMode(CrawlerDomainState domainState, DateTimeOffset now);
+    ValueTask RefreshDomainMode(CrawlerDomainState domainState, DateTimeOffset now, CancellationToken cancellationToken);
 
     int GetPostNavigationDelayMs(PlaywrightCrawlOptions options, PlaywrightCrawlPolicy policy);
 

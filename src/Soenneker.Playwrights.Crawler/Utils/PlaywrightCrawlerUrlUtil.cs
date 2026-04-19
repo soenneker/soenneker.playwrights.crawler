@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Playwright;
@@ -17,6 +18,8 @@ namespace Soenneker.Playwrights.Crawler.Utils;
 internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
 {
     private const string ExternalDirectory = "_external";
+    private static readonly Regex _percentPlaceholderRegex = new("%[A-Z][A-Z0-9_\\-]*%", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex _bracePlaceholderRegex = new("(\\$\\{[^}]+\\}|\\{[A-Z][A-Z0-9_\\-]*\\})", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public Uri ValidateAndNormalizeRootUrl(string url)
     {
@@ -36,10 +39,16 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
         if (url.IsNullOrWhiteSpace())
             return false;
 
+        if (ContainsUnresolvedTemplateToken(url))
+            return false;
+
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? candidate))
             return false;
 
         if (candidate.Scheme != Uri.UriSchemeHttp && candidate.Scheme != Uri.UriSchemeHttps)
+            return false;
+
+        if (ContainsUnresolvedTemplateToken(candidate.AbsoluteUri))
             return false;
 
         uri = NormalizeUrl(candidate);
@@ -171,7 +180,7 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
                                                              """);
 
         if (links is null || links.Length == 0)
-            return Array.Empty<string>();
+            return [];
 
         return links;
     }
@@ -255,5 +264,24 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
             "text/html" => ".html",
             _ => ".bin"
         };
+    }
+
+    private static bool ContainsUnresolvedTemplateToken(string value)
+    {
+        if (value.IsNullOrWhiteSpace())
+            return false;
+
+        if (_percentPlaceholderRegex.IsMatch(value) || _bracePlaceholderRegex.IsMatch(value))
+            return true;
+
+        try
+        {
+            string decoded = Uri.UnescapeDataString(value);
+            return !ReferenceEquals(decoded, value) && (_percentPlaceholderRegex.IsMatch(decoded) || _bracePlaceholderRegex.IsMatch(decoded));
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
