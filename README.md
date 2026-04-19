@@ -12,6 +12,13 @@ A configurable Playwright crawler for mirroring sites to disk with support for:
 - throttling, retries, slow mode, and cooldown behavior
 - optional stealth launch/context settings
 
+## Related Repos
+
+You might also be interested in:
+
+- [soenneker.playwrights.installation](https://github.com/soenneker/soenneker.playwrights.installation) for ensuring Playwright browsers are installed before runtime.
+- [soenneker.playwrights.extensions.stealth](https://github.com/soenneker/soenneker.playwrights.extensions.stealth) for stealth-oriented Chromium launch and browser-context extensions.
+
 ## Installation
 
 ```bash
@@ -78,6 +85,7 @@ PlaywrightCrawlResult result = await crawler.Crawl(new PlaywrightCrawlOptions
     OverwriteExistingFiles = true,
     Headless = true,
     UseStealth = true,
+    ThrottleMode = PlaywrightCrawlThrottleMode.Automatic,
     NavigationTimeoutMs = 45_000,
     PostNavigationDelayMs = 0,
     ContinueOnPageError = true,
@@ -137,6 +145,7 @@ Saves:
 | `OverwriteExistingFiles` | Controls whether existing files can be replaced. |
 | `Headless` | Runs Chromium headlessly when `true`. |
 | `UseStealth` | Enables the Soenneker stealth Playwright extensions. |
+| `ThrottleMode` | Controls automatic pacing and adaptive throttling. Defaults to `Automatic`; use `Disabled` to bypass automatic pacing, slow mode, cooldown waiting, and implicit post-navigation jitter. |
 | `NavigationTimeoutMs` | Navigation timeout per page. |
 | `PostNavigationDelayMs` | Extra delay after navigation to allow late assets to settle. |
 | `ContinueOnPageError` | Continues crawling after an individual page fails. |
@@ -171,6 +180,7 @@ Examples:
 - Duplicate detection ignores query strings by default.
 - HTML formatting is opt-in and uses `Soenneker.Html.Formatter` when `FormatHtml = true`.
 - Challenge and captcha-like pages contribute to the crawler's blocking and slow-mode signals.
+- Setting `ThrottleMode = PlaywrightCrawlThrottleMode.Disabled` keeps configured concurrency limits and retries, but skips the crawler's automatic pacing and adaptive slowdown behavior.
 - Cross-origin URL rewriting only applies to captured cross-origin assets that are actually available on disk.
 - `Full` mode captures resources observed during page loads, but the rewrite pass is limited to captured cross-origin asset URLs rather than a full offline-mirroring transform.
 - Some response types are intentionally skipped, such as empty bodies and certain framework/internal fetch endpoints.

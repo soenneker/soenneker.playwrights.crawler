@@ -1,8 +1,13 @@
+using Soenneker.Gen.EnumValues;
+
 namespace Soenneker.Playwrights.Crawler.Enums;
 
-public enum CrawlerDomainMode
+[EnumValue]
+public sealed partial class CrawlerDomainMode
 {
-    Normal = 0,
-    Slow = 1,
-    Cooldown = 2
+    public static readonly CrawlerDomainMode Normal = new(0);
+
+    public static readonly CrawlerDomainMode Slow = new(1);
+
+    public static readonly CrawlerDomainMode Cooldown = new(2);
 }

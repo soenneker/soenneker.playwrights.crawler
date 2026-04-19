@@ -11,6 +11,7 @@
     <Project Path="src/Soenneker.Playwrights.Crawler/Soenneker.Playwrights.Crawler.csproj" />
   </Folder>
   <Folder Name="/test/">
+    <File Path="README.md" />
     <Project Path="test/Soenneker.Playwrights.Crawler.Tests/Soenneker.Playwrights.Crawler.Tests.csproj" />
   </Folder>
 </Solution>

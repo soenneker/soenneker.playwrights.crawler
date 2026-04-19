@@ -109,6 +109,13 @@ public sealed class PlaywrightCrawlOptions
     public PlaywrightCrawlPolicy Policy { get; set; } = new();
 
     /// <summary>
+    /// Controls automatic crawler pacing and adaptive throttling behavior.
+    /// <see cref="PlaywrightCrawlThrottleMode.Disabled"/> skips automatic pacing, adaptive slow mode, cooldown waiting, and implicit post-navigation jitter.
+    /// Configured concurrency limits and retries still apply.
+    /// </summary>
+    public PlaywrightCrawlThrottleMode ThrottleMode { get; set; } = PlaywrightCrawlThrottleMode.Automatic;
+
+    /// <summary>
     /// Maximum navigation and selector timeout in milliseconds.
     /// </summary>
     public int NavigationTimeoutMs { get; set; } = 45_000;

@@ -38,7 +38,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                     policy.MaxRetries + 1);
             }
 
-            await EnsureDomainRequestAllowed(domainState, policy, cancellationToken)
+            await EnsureDomainRequestAllowed(domainState, policy, options.ThrottleMode, cancellationToken)
                 .NoSync();
 
             var globalAcquired = false;
@@ -55,7 +55,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                                  .NoSync();
                 ipAcquired = true;
 
-                await AcquireDomainConcurrency(domainState, policy, cancellationToken)
+                await AcquireDomainConcurrency(domainState, policy, options.ThrottleMode, cancellationToken)
                     .NoSync();
                 domainAcquired = true;
 
@@ -72,7 +72,8 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
                     stopwatch.Stop();
 
-                    RecordNavigationOutcome(domainState, policy, response?.Status, stopwatch.ElapsedMilliseconds, response?.Ok ?? false);
+                    RecordNavigationOutcome(domainState, policy, options.ThrottleMode, response?.Status, stopwatch.ElapsedMilliseconds,
+                        response?.Ok ?? false);
 
                     if (response is not null && IsRetryableStatusCode(response.Status) && attempt < policy.MaxRetries)
                     {
@@ -89,7 +90,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                 catch (PlaywrightException ex) when (IsTransientNetworkFailure(ex) && attempt < policy.MaxRetries)
                 {
                     stopwatch.Stop();
-                    RecordNavigationOutcome(domainState, policy, null, stopwatch.ElapsedMilliseconds, success: false);
+                    RecordNavigationOutcome(domainState, policy, options.ThrottleMode, null, stopwatch.ElapsedMilliseconds, success: false);
 
                     _logger.LogDebug(ex,
                         "Navigation to {Url} failed transiently after {ElapsedMs}ms; backing off before retry {NextAttempt} of {TotalAttempts}",
@@ -113,8 +114,19 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         }
     }
 
-    public async Task EnsureDomainRequestAllowed(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, CancellationToken cancellationToken)
+    public async Task EnsureDomainRequestAllowed(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+        CancellationToken cancellationToken)
     {
+        if (throttleMode == PlaywrightCrawlThrottleMode.Disabled)
+        {
+            using (domainState.StateLock.LockSync(cancellationToken))
+            {
+                domainState.LastRequestUtc = DateTimeOffset.UtcNow;
+            }
+
+            return;
+        }
+
         using Releaser timingReleaser = await domainState.TimingLock.Lock(cancellationToken);
 
         while (true)
@@ -164,13 +176,24 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         }
     }
 
-    public async Task AcquireDomainConcurrency(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, CancellationToken cancellationToken)
+    public async Task AcquireDomainConcurrency(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+        CancellationToken cancellationToken)
     {
         await domainState.ConcurrencySemaphore.WaitAsync(cancellationToken)
                          .NoSync();
 
         try
         {
+            if (throttleMode == PlaywrightCrawlThrottleMode.Disabled)
+            {
+                using (domainState.StateLock.LockSync(cancellationToken))
+                {
+                    domainState.ActiveCount++;
+                }
+
+                return;
+            }
+
             var spinCount = 0;
 
             while (true)
@@ -221,7 +244,8 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         domainState.ConcurrencySemaphore.Release();
     }
 
-    public void RecordNavigationOutcome(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, int? statusCode, long elapsedMs, bool success)
+    public void RecordNavigationOutcome(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+        int? statusCode, long elapsedMs, bool success)
     {
         using (domainState.StateLock.LockSync())
         {
@@ -248,11 +272,13 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                 TrimSignalQueue(domainState.Recent403s, policy.SlowModeSignalWindowMs, now);
             }
 
-            EvaluateDomainHealth(domainState, policy, now);
+            if (throttleMode != PlaywrightCrawlThrottleMode.Disabled)
+                EvaluateDomainHealth(domainState, policy, now);
         }
     }
 
-    public void HandleBlockingSignal(ILogger logger, CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, int statusCode, string reason)
+    public void HandleBlockingSignal(ILogger logger, CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
+        int statusCode, string reason)
     {
         logger.LogWarning("Domain blocking signal detected for {DomainKey}: {Reason} (status {StatusCode})", domainState.DomainKey, reason, statusCode);
 
@@ -271,7 +297,8 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                 TrimSignalQueue(domainState.Recent403s, policy.SlowModeSignalWindowMs, now);
             }
 
-            PromoteToSlowModeOrCooldown(domainState, policy, now, reason);
+            if (throttleMode != PlaywrightCrawlThrottleMode.Disabled)
+                PromoteToSlowModeOrCooldown(domainState, policy, now, reason);
         }
     }
 
@@ -309,6 +336,9 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
     {
         if (options.PostNavigationDelayMs > 0)
             return options.PostNavigationDelayMs;
+
+        if (options.ThrottleMode == PlaywrightCrawlThrottleMode.Disabled)
+            return 0;
 
         return Random.Shared.Next(policy.PostNavigationJitterMinMs, policy.PostNavigationJitterMaxMs + 1);
     }

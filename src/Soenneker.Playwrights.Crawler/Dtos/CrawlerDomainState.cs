@@ -12,6 +12,7 @@ public sealed class CrawlerDomainState
     {
         DomainKey = domainKey;
         ConcurrencySemaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+        Mode = CrawlerDomainMode.Normal;
     }
 
     public string DomainKey { get; }

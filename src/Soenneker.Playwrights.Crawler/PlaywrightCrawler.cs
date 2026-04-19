@@ -280,11 +280,11 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
             if (_urlUtil.IsChallengePage(title, html))
             {
-                _policyUtil.HandleBlockingSignal(_logger, domainState, policy, 429, "challenge/captcha page detected");
+                _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, 429, "challenge/captcha page detected");
             }
             else if (navigationResponse?.Status == 403)
             {
-                _policyUtil.HandleBlockingSignal(_logger, domainState, policy, 403, "403 response received");
+                _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, 403, "403 response received");
             }
 
             await _storage.SaveRenderedDocument(rootUri, finalUri, html, options, result, savedUrls, resultLock, cancellationToken)
