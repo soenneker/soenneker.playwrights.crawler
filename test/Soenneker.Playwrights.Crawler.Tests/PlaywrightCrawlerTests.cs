@@ -80,7 +80,7 @@ public sealed class PlaywrightCrawlerTests : FixturedUnitTest
     {
         var options = new PlaywrightCrawlOptions
         {
-            Url = "https://localhost:7040/", Mode = PlaywrightCrawlMode.HtmlOnly, ThrottleMode = PlaywrightCrawlThrottleMode.Disabled,
+            Url = "https://localhost:7040/", Mode = PlaywrightCrawlMode.Full, ThrottleMode = PlaywrightCrawlThrottleMode.Disabled,
             SaveDirectory = @"c:\quark", ClearSaveDirectory = true, ContinueOnPageError = true, Headless = true, SameHostOnly = true, PrettyPrintHtml = true,
             
             MaxDepth = 30
