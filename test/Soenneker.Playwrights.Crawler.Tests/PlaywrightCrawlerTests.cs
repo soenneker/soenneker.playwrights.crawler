@@ -1,36 +1,35 @@
 using System;
 using System.Threading.Tasks;
 using System.Diagnostics;
-using Soenneker.Facts.Local;
+using Soenneker.Tests.Attributes.Local;
 using Soenneker.Playwrights.Crawler.Abstract;
 using Soenneker.Playwrights.Crawler.Dtos;
 using Soenneker.Playwrights.Crawler.Enums;
 using Soenneker.Playwrights.Crawler.Utils.Abstract;
-using Soenneker.Tests.FixturedUnit;
-using Xunit;
+using Soenneker.Tests.HostedUnit;
 
 namespace Soenneker.Playwrights.Crawler.Tests;
 
-[Collection("Collection")]
-public sealed class PlaywrightCrawlerTests : FixturedUnitTest
+[ClassDataSource<Host>(Shared = SharedType.PerTestSession)]
+public sealed class PlaywrightCrawlerTests : HostedUnitTest
 {
     private readonly IPlaywrightCrawler _util;
     private readonly IPlaywrightCrawlerPolicyUtil _policyUtil;
     private readonly IPlaywrightCrawlerUrlUtil _urlUtil;
 
-    public PlaywrightCrawlerTests(Fixture fixture, ITestOutputHelper output) : base(fixture, output)
+    public PlaywrightCrawlerTests(Host host) : base(host)
     {
         _util = Resolve<IPlaywrightCrawler>(true);
         _policyUtil = Resolve<IPlaywrightCrawlerPolicyUtil>(true);
         _urlUtil = Resolve<IPlaywrightCrawlerUrlUtil>(true);
     }
 
-    [Fact]
+    [Test]
     public void Default()
     {
     }
 
-    [LocalFact]
+    [LocalOnly]
     public void GetPostNavigationDelayMs_returns_0_when_throttling_is_disabled_and_no_explicit_delay_is_set()
     {
         var options = new PlaywrightCrawlOptions
@@ -45,7 +44,7 @@ public sealed class PlaywrightCrawlerTests : FixturedUnitTest
         Assert.Equal(0, result);
     }
 
-    [LocalFact]
+    [LocalOnly]
     public async Task EnsureDomainRequestAllowed_does_not_wait_when_throttling_is_disabled()
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)
@@ -65,7 +64,7 @@ public sealed class PlaywrightCrawlerTests : FixturedUnitTest
         Assert.True(domainState.LastRequestUtc.HasValue);
     }
 
-    [Fact]
+    [Test]
     public void TryNormalizeHttpUrl_rejects_unresolved_template_urls()
     {
         bool result = _urlUtil.TryNormalizeHttpUrl("https://localhost:7040/%BASE_URL%25", out Uri? uri);
@@ -75,7 +74,7 @@ public sealed class PlaywrightCrawlerTests : FixturedUnitTest
     }
 
     //[ManualFact]
-    [LocalFact]
+    [LocalOnly]
     public async ValueTask Test()
     {
         var options = new PlaywrightCrawlOptions
