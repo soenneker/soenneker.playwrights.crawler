@@ -73,7 +73,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
         Assert.Null(uri);
     }
 
-    //[ManualFact]
+    //[Skip("Manual")]
     [LocalOnly]
     public async ValueTask Test()
     {
