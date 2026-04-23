@@ -7,6 +7,7 @@ using Soenneker.Playwrights.Crawler.Dtos;
 using Soenneker.Playwrights.Crawler.Enums;
 using Soenneker.Playwrights.Crawler.Utils.Abstract;
 using Soenneker.Tests.HostedUnit;
+using AwesomeAssertions;
 
 namespace Soenneker.Playwrights.Crawler.Tests;
 
@@ -41,7 +42,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
 
         int result = _policyUtil.GetPostNavigationDelayMs(options, new PlaywrightCrawlPolicy());
 
-        Assert.Equal(0, result);
+        result.Should().Be(0);
     }
 
     [LocalOnly]
@@ -57,11 +58,11 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
 
         var stopwatch = Stopwatch.StartNew();
 
-        await _policyUtil.EnsureDomainRequestAllowed(domainState, new PlaywrightCrawlPolicy(), PlaywrightCrawlThrottleMode.Disabled, CancellationToken);
+        await _policyUtil.EnsureDomainRequestAllowed(domainState, new PlaywrightCrawlPolicy(), PlaywrightCrawlThrottleMode.Disabled, System.Threading.CancellationToken.None);
         stopwatch.Stop();
 
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromMilliseconds(250));
-        Assert.True(domainState.LastRequestUtc.HasValue);
+        stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromMilliseconds(250));
+        domainState.LastRequestUtc.HasValue.Should().BeTrue();
     }
 
     [Test]
@@ -69,7 +70,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     {
         bool result = _urlUtil.TryNormalizeHttpUrl("https://localhost:7040/%BASE_URL%25", out Uri? uri);
 
-        Assert.False(result);
+        result.Should().BeFalse();
         Assert.Null(uri);
     }
 
@@ -85,6 +86,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
             MaxDepth = 30
         };
 
-        await _util.Crawl(options, CancellationToken);
+        await _util.Crawl(options, System.Threading.CancellationToken.None);
     }
 }
+
