@@ -140,8 +140,15 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                 catch (Exception ex)
                 {
                     _logger.LogDebug(ex,
-                        "Unable to read response body for {Url} (status: {StatusCode}, ok: {Ok}, resourceType: {ResourceType}, method: {Method}, contentType: {ContentType})",
+                        "Unable to read response body for {Url}; falling back to direct download (status: {StatusCode}, ok: {Ok}, resourceType: {ResourceType}, method: {Method}, contentType: {ContentType})",
                         response.Url, response.Status, response.Ok, response.Request.ResourceType, response.Request.Method, contentType);
+
+                    resourceAvailable = await SaveByDirectDownload(normalizedUrl, relativePath, isHtmlDocument, contentType, options, result, savedUrls,
+                        resultLock, cancellationToken).NoSync();
+
+                    if (resourceAvailable && !isHtmlDocument && !_urlUtil.UrisShareHost(rootUri, resourceUri))
+                        externalResources[normalizedUrl] = relativePath;
+
                     continue;
                 }
 
