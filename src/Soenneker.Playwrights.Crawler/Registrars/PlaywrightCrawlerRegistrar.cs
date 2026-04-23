@@ -21,7 +21,6 @@ public static class PlaywrightCrawlerRegistrar
     public static IServiceCollection AddPlaywrightCrawlerAsSingleton(this IServiceCollection services)
     {
         services.AddFileUtilAsSingleton()
-                .AddDirectoryUtilAsSingleton()
                 .AddHtmlFormatterAsSingleton()
                 .AddPlaywrightInstallationUtilAsSingleton();
 
@@ -40,7 +39,6 @@ public static class PlaywrightCrawlerRegistrar
     public static IServiceCollection AddPlaywrightCrawlerAsScoped(this IServiceCollection services)
     {
         services.AddFileUtilAsScoped()
-                .AddDirectoryUtilAsScoped()
                 .AddHtmlFormatterAsScoped()
                 .AddPlaywrightInstallationUtilAsSingleton();
 
