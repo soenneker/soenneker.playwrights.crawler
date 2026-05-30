@@ -19,7 +19,7 @@ public interface IPlaywrightCrawlerStorage
     ValueTask SaveRenderedDocument(Uri rootUri, Uri documentUri, string html, PlaywrightCrawlOptions options, PlaywrightCrawlResult result,
         ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, CancellationToken cancellationToken);
 
-    ValueTask<IReadOnlyDictionary<string, string>> SaveObservedResponses(IEnumerable<IResponse> responses, Uri rootUri, Uri mainDocumentUri,
+    ValueTask<IReadOnlyDictionary<string, string>> SaveObservedResponses(IBrowserContext context, IEnumerable<IResponse> responses, Uri rootUri, Uri mainDocumentUri,
         PlaywrightCrawlOptions options, PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock,
         Stopwatch stopwatch, CancellationToken cancellationToken);
 
