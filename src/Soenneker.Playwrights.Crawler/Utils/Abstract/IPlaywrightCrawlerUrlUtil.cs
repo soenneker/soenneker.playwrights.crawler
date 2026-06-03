@@ -27,6 +27,8 @@ public interface IPlaywrightCrawlerUrlUtil
 
     Task<IReadOnlyList<string>> GetPageLinks(IPage page);
 
+    Task<IReadOnlyList<string>> GetPageResourceUrls(IPage page);
+
     bool IsChallengePage(string? title, string html);
 
     Task<string> ResolveIpKey(Uri uri, CancellationToken cancellationToken);

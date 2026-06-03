@@ -9,6 +9,7 @@ A configurable Playwright crawler for mirroring sites to disk with support for:
 - HTML-only or full resource capture
 - crawl limits by depth, page count, duration, and storage
 - same-host restrictions with optional cross-origin asset capture
+- DOM attribute resource discovery for lazy widgets and deferred assets
 - throttling, retries, slow mode, and cooldown behavior
 - optional stealth launch/context settings
 
@@ -124,8 +125,11 @@ Saves:
 
 - rendered HTML documents
 - same-origin network resources observed while pages load
+- resource URLs discovered in DOM attributes such as `data-src` and `data-css-url`
 - optional cross-origin assets under `_external` when `IncludeCrossOriginAssets = true`
 - optional rewriting of cross-origin asset URLs in saved HTML when `RewriteCrossOriginAssetUrls = true`
+- optional lazy-load scrolling to capture below-the-fold media
+- optional rewriting of same-origin absolute URLs in saved HTML and CSS to root-relative paths when `RewriteSameOriginAbsoluteUrls = true`
 
 ## Key Options
 
@@ -142,6 +146,11 @@ Saves:
 | `FormatHtml` | Formats saved HTML documents with `Soenneker.Html.Formatter` when `true`. Defaults to `false`. |
 | `IncludeCrossOriginAssets` | In `Full` mode, saves cross-origin resources under `_external`. |
 | `RewriteCrossOriginAssetUrls` | Rewrites saved HTML so captured cross-origin asset URLs point at the local `_external` copy. Requires `IncludeCrossOriginAssets`. |
+| `RewriteSameOriginAbsoluteUrls` | Rewrites same-origin absolute URLs in saved HTML and CSS to root-relative paths, such as `https://example.com/script.js` to `/script.js`. |
+| `TriggerLazyLoading` | In `Full` mode, scrolls pages after navigation to trigger lazy-loaded media before resources are saved. Defaults to `true`. |
+| `LazyLoadScrollStepPx` | Pixel distance for each lazy-load scroll step. |
+| `LazyLoadScrollDelayMs` | Delay after each lazy-load scroll step. |
+| `LazyLoadMaxScrolls` | Maximum number of lazy-load scroll steps per page. |
 | `ClearSaveDirectory` | Deletes the output directory before crawling. |
 | `OverwriteExistingFiles` | Controls whether existing files can be replaced. |
 | `Headless` | Runs Chromium headlessly when `true`. |
@@ -173,6 +182,7 @@ Examples:
 
 - `https://example.com/` -> `index.html`
 - `https://example.com/docs/getting-started` -> `docs/getting-started/index.html`
+- `https://example.com/script.js` -> `/script.js` inside saved HTML when same-origin URL rewriting is enabled
 - `https://cdn.example.com/app.css` -> `_external/cdn.example.com/app.css` when cross-origin asset capture is enabled
 - a saved page can reference that asset as `../../_external/cdn.example.com/app.css` when URL rewriting is enabled
 

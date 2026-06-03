@@ -69,6 +69,32 @@ public sealed class PlaywrightCrawlOptions
     public bool RewriteCrossOriginAssetUrls { get; set; }
 
     /// <summary>
+    /// When true, same-origin absolute URLs in saved HTML and CSS are rewritten to root-relative paths.
+    /// For example, <c>https://example.com/script.js</c> becomes <c>/script.js</c>.
+    /// </summary>
+    public bool RewriteSameOriginAbsoluteUrls { get; set; }
+
+    /// <summary>
+    /// When true and <see cref="Mode"/> is <see cref="PlaywrightCrawlMode.Full"/>, scrolls pages after navigation to trigger lazy-loaded media before resources are saved.
+    /// </summary>
+    public bool TriggerLazyLoading { get; set; } = true;
+
+    /// <summary>
+    /// Pixel distance for each lazy-load scroll step.
+    /// </summary>
+    public int LazyLoadScrollStepPx { get; set; } = 900;
+
+    /// <summary>
+    /// Delay after each lazy-load scroll step.
+    /// </summary>
+    public int LazyLoadScrollDelayMs { get; set; } = 150;
+
+    /// <summary>
+    /// Maximum number of lazy-load scroll steps per page.
+    /// </summary>
+    public int LazyLoadMaxScrolls { get; set; } = 40;
+
+    /// <summary>
     /// Formats saved HTML documents with Soenneker.Html.Formatter when true.
     /// </summary>
     public bool PrettyPrintHtml { get; set; }

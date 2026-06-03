@@ -71,6 +71,15 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         if (options.PostNavigationDelayMs < 0)
             throw new ArgumentOutOfRangeException(nameof(options), "PostNavigationDelayMs cannot be negative.");
 
+        if (options.LazyLoadScrollStepPx <= 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "LazyLoadScrollStepPx must be greater than zero.");
+
+        if (options.LazyLoadScrollDelayMs < 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "LazyLoadScrollDelayMs cannot be negative.");
+
+        if (options.LazyLoadMaxScrolls < 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "LazyLoadMaxScrolls cannot be negative.");
+
         _policyUtil.ValidatePolicy(policy);
 
         _logger.LogInformation("Starting crawl for {Url} into {SaveDirectory} (mode: {Mode}, maxDepth: {MaxDepth})",
@@ -275,6 +284,9 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
             if (postNavigationDelayMs > 0)
                 await page.WaitForTimeoutAsync(postNavigationDelayMs).NoSync();
 
+            if (options.Mode == PlaywrightCrawlMode.Full && options.TriggerLazyLoading)
+                await TriggerLazyLoadedResources(page, options, cancellationToken).NoSync();
+
             Uri finalUri = _urlUtil.ValidateAndNormalizeRootUrl(page.Url);
 
             visitedPages.TryAdd(
@@ -307,16 +319,33 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                     responseSnapshot = [.. responses];
                 }
 
-                IReadOnlyDictionary<string, string> externalResources = await _storage
-                                                                              .SaveObservedResponses(context, responseSnapshot,
-                                                                                  rootUri, finalUri, options, result,
-                                                                                  savedUrls, resultLock, stopwatch,
-                                                                                  cancellationToken).NoSync();
+                IReadOnlyList<string> discoveredResourceUrls = await _urlUtil.GetPageResourceUrls(page).NoSync();
 
-                if (options.RewriteCrossOriginAssetUrls && externalResources.Count > 0)
+                IReadOnlyDictionary<string, string> externalResources = await _storage
+                                                                               .SaveObservedResponses(context, responseSnapshot,
+                                                                                   rootUri, finalUri, options, result,
+                                                                                   savedUrls, resultLock, stopwatch,
+                                                                                   cancellationToken).NoSync();
+
+                IReadOnlyDictionary<string, string> discoveredExternalResources = await _storage
+                                                                                       .SaveDiscoveredResourceUrls(context,
+                                                                                           discoveredResourceUrls, rootUri,
+                                                                                           finalUri, options, result,
+                                                                                           savedUrls, resultLock, stopwatch,
+                                                                                           cancellationToken).NoSync();
+
+                if (options.RewriteCrossOriginAssetUrls &&
+                    (externalResources.Count > 0 || discoveredExternalResources.Count > 0))
                 {
+                    var resourcesToRewrite = new Dictionary<string, string>(externalResources, StringComparer.OrdinalIgnoreCase);
+
+                    foreach ((string url, string relativePath) in discoveredExternalResources)
+                    {
+                        resourcesToRewrite.TryAdd(url, relativePath);
+                    }
+
                     await _storage.RewriteExternalResourceUrlsInSavedDocument(rootUri, finalUri, html,
-                        externalResources, options, result, resultLock, cancellationToken).NoSync();
+                        resourcesToRewrite, options, result, resultLock, cancellationToken).NoSync();
                 }
             }
 
@@ -374,6 +403,140 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
             page.Response -= ResponseHandler;
 
             await page.CloseAsync().NoSync();
+        }
+    }
+
+    private async ValueTask TriggerLazyLoadedResources(IPage page, PlaywrightCrawlOptions options,
+        CancellationToken cancellationToken)
+    {
+        if (options.LazyLoadMaxScrolls == 0)
+            return;
+
+        try
+        {
+            await page.EvaluateAsync("""
+                                     () => {
+                                         const srcAttributes = ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-hires'];
+                                         const srcSetAttributes = ['data-srcset', 'data-lazy-srcset'];
+                                         const backgroundAttributes = ['data-bg', 'data-background', 'data-background-image', 'data-bg-src'];
+
+                                         for (const image of document.querySelectorAll('img')) {
+                                             image.loading = 'eager';
+
+                                             if (!image.getAttribute('src')) {
+                                                 for (const attribute of srcAttributes) {
+                                                     const value = image.getAttribute(attribute);
+
+                                                     if (value) {
+                                                         image.setAttribute('src', value);
+                                                         break;
+                                                     }
+                                                 }
+                                             }
+
+                                             if (!image.getAttribute('srcset')) {
+                                                 for (const attribute of srcSetAttributes) {
+                                                     const value = image.getAttribute(attribute);
+
+                                                     if (value) {
+                                                         image.setAttribute('srcset', value);
+                                                         break;
+                                                     }
+                                                 }
+                                             }
+                                         }
+
+                                         for (const source of document.querySelectorAll('source')) {
+                                             if (!source.getAttribute('srcset')) {
+                                                 for (const attribute of srcSetAttributes) {
+                                                     const value = source.getAttribute(attribute);
+
+                                                     if (value) {
+                                                         source.setAttribute('srcset', value);
+                                                         break;
+                                                     }
+                                                 }
+                                             }
+                                         }
+
+                                         const backgroundSelector = backgroundAttributes
+                                             .map(attribute => `[${attribute}]`)
+                                             .join(',');
+
+                                         for (const element of document.querySelectorAll(backgroundSelector)) {
+                                             if (element.style.backgroundImage && element.style.backgroundImage !== 'none') {
+                                                 continue;
+                                             }
+
+                                             for (const attribute of backgroundAttributes) {
+                                                 const value = element.getAttribute(attribute);
+
+                                                 if (value) {
+                                                     element.style.backgroundImage = `url("${value.replaceAll('"', '\\"')}")`;
+                                                     break;
+                                                 }
+                                             }
+                                         }
+                                     }
+                                     """).NoSync();
+
+            double previousScrollHeight = -1;
+
+            for (var i = 0; i < options.LazyLoadMaxScrolls; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                double[] state = await page.EvaluateAsync<double[]>(
+                    """
+                    step => {
+                        const scrollingElement = document.scrollingElement || document.documentElement || document.body;
+                        window.scrollBy(0, step);
+
+                        return [
+                            window.scrollY || scrollingElement.scrollTop || 0,
+                            window.innerHeight || 0,
+                            scrollingElement.scrollHeight || 0
+                        ];
+                    }
+                    """, options.LazyLoadScrollStepPx).NoSync();
+
+                if (options.LazyLoadScrollDelayMs > 0)
+                    await page.WaitForTimeoutAsync(options.LazyLoadScrollDelayMs).NoSync();
+
+                double scrollY = state.Length > 0 ? state[0] : 0;
+                double viewportHeight = state.Length > 1 ? state[1] : 0;
+                double scrollHeight = state.Length > 2 ? state[2] : 0;
+
+                if (viewportHeight <= 0 || scrollHeight <= 0)
+                    break;
+
+                if (scrollY + viewportHeight >= scrollHeight - 2 && Math.Abs(scrollHeight - previousScrollHeight) < 1)
+                    break;
+
+                previousScrollHeight = scrollHeight;
+            }
+
+            await page.EvaluateAsync("() => window.scrollTo(0, 0)").NoSync();
+
+            try
+            {
+                await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions
+                {
+                    Timeout = Math.Min(options.NavigationTimeoutMs, 2_000)
+                }).NoSync();
+            }
+            catch (TimeoutException)
+            {
+                // Some pages keep background requests open; already observed responses are still saved.
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to trigger lazy-loaded resources for {Url}", page.Url);
         }
     }
 }

@@ -23,6 +23,10 @@ public interface IPlaywrightCrawlerStorage
         PlaywrightCrawlOptions options, PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock,
         Stopwatch stopwatch, CancellationToken cancellationToken);
 
+    ValueTask<IReadOnlyDictionary<string, string>> SaveDiscoveredResourceUrls(IBrowserContext context, IEnumerable<string> urls, Uri rootUri, Uri mainDocumentUri,
+        PlaywrightCrawlOptions options, PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock,
+        Stopwatch stopwatch, CancellationToken cancellationToken);
+
     ValueTask RewriteExternalResourceUrlsInSavedDocument(Uri rootUri, Uri documentUri, string html, IReadOnlyDictionary<string, string> externalResources,
         PlaywrightCrawlOptions options, PlaywrightCrawlResult result, AsyncLock resultLock, CancellationToken cancellationToken);
 }

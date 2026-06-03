@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -77,7 +79,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         PlaywrightCrawlOptions options, PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls,
         AsyncLock resultLock, CancellationToken cancellationToken)
     {
-        string htmlToSave = await PrettyPrintHtmlIfEnabled(html, options, cancellationToken).NoSync();
+        string htmlToSave = await PrepareHtmlForSave(rootUri, html, options, cancellationToken).NoSync();
 
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(htmlToSave);
         string relativePath =
@@ -128,8 +130,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 
             if (ShouldDirectDownload(resourceUri, contentType))
             {
-                resourceAvailable = await SaveByDirectDownload(normalizedUrl, relativePath, isHtmlDocument, contentType,
-                    options, result, savedUrls, resultLock, context.APIRequest, response.Request.Headers,
+                resourceAvailable = await SaveByDirectDownload(rootUri, resourceUri, normalizedUrl, relativePath,
+                    isHtmlDocument, contentType, options, result, savedUrls, resultLock, context.APIRequest, response.Request.Headers,
                     cancellationToken).NoSync();
             }
             else
@@ -147,8 +149,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                         response.Url, response.Status, response.Ok, response.Request.ResourceType,
                         response.Request.Method, contentType);
 
-                    resourceAvailable = await SaveByDirectDownload(normalizedUrl, relativePath, isHtmlDocument,
-                        contentType, options, result, savedUrls, resultLock, context.APIRequest,
+                    resourceAvailable = await SaveByDirectDownload(rootUri, resourceUri, normalizedUrl, relativePath,
+                        isHtmlDocument, contentType, options, result, savedUrls, resultLock, context.APIRequest,
                         response.Request.Headers, cancellationToken).NoSync();
 
                     if (resourceAvailable && !isHtmlDocument && !_urlUtil.UrisShareHost(rootUri, resourceUri))
@@ -160,11 +162,61 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                 if (body.Length == 0)
                     continue;
 
+                body = PrepareTextResourceForSave(rootUri, resourceUri, body, isHtmlDocument, contentType, options);
+
                 resourceAvailable = await SaveFile(normalizedUrl, relativePath, body, isHtmlDocument, contentType,
                     options, result, savedUrls, resultLock, cancellationToken).NoSync();
             }
 
             if (resourceAvailable && !isHtmlDocument && !_urlUtil.UrisShareHost(rootUri, resourceUri))
+                externalResources[normalizedUrl] = relativePath;
+        }
+
+        return externalResources;
+    }
+
+    public async ValueTask<IReadOnlyDictionary<string, string>> SaveDiscoveredResourceUrls(IBrowserContext context,
+        IEnumerable<string> urls, Uri rootUri, Uri mainDocumentUri, PlaywrightCrawlOptions options,
+        PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock,
+        Stopwatch stopwatch, CancellationToken cancellationToken)
+    {
+        var externalResources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var discoveredUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyDictionary<string, string> requestHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["referer"] = mainDocumentUri.AbsoluteUri
+        };
+
+        foreach (string url in urls)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (_policyUtil.ShouldStop(options, result, stopwatch))
+                break;
+
+            if (!_urlUtil.TryNormalizeHttpUrl(url, out Uri? resourceUri) || resourceUri is null)
+                continue;
+
+            string normalizedUrl = resourceUri.AbsoluteUri;
+
+            if (!discoveredUrls.Add(normalizedUrl))
+                continue;
+
+            if (string.Equals(normalizedUrl, mainDocumentUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!LooksLikeDirectDownloadResource(resourceUri))
+                continue;
+
+            if (!_urlUtil.ShouldSaveResource(rootUri, resourceUri, isHtmlDocument: false, options))
+                continue;
+
+            string relativePath = _urlUtil.BuildRelativePath(rootUri, resourceUri, isHtmlDocument: false, contentType: null);
+            bool resourceAvailable = await SaveByDirectDownload(rootUri, resourceUri, normalizedUrl, relativePath,
+                isHtmlDocument: false, contentType: null, options, result, savedUrls, resultLock, context.APIRequest,
+                requestHeaders, cancellationToken).NoSync();
+
+            if (resourceAvailable && !_urlUtil.UrisShareHost(rootUri, resourceUri))
                 externalResources[normalizedUrl] = relativePath;
         }
 
@@ -178,10 +230,10 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         if (!options.IncludeCrossOriginAssets || externalResources.Count == 0)
             return;
 
-        string originalHtml = await PrettyPrintHtmlIfEnabled(html, options, cancellationToken).NoSync();
+        string originalHtml = await PrepareHtmlForSave(rootUri, html, options, cancellationToken).NoSync();
 
         string rewrittenHtml = RewriteExternalResourceUrls(rootUri, documentUri, html, externalResources);
-        rewrittenHtml = await PrettyPrintHtmlIfEnabled(rewrittenHtml, options, cancellationToken).NoSync();
+        rewrittenHtml = await PrepareHtmlForSave(rootUri, rewrittenHtml, options, cancellationToken).NoSync();
 
         if (string.Equals(rewrittenHtml, originalHtml, StringComparison.Ordinal))
             return;
@@ -307,8 +359,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         return true;
     }
 
-    private async ValueTask<bool> SaveByDirectDownload(string url, string relativePath, bool isHtmlDocument,
-        string? contentType, PlaywrightCrawlOptions options, PlaywrightCrawlResult result,
+    private async ValueTask<bool> SaveByDirectDownload(Uri rootUri, Uri resourceUri, string url, string relativePath,
+        bool isHtmlDocument, string? contentType, PlaywrightCrawlOptions options, PlaywrightCrawlResult result,
         ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, IAPIRequestContext apiRequestContext,
         IReadOnlyDictionary<string, string> requestHeaders, CancellationToken cancellationToken)
     {
@@ -400,6 +452,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                 return false;
             }
 
+            contentType ??= TryGetHeaderValue(response.Headers, "content-type");
+
             long? contentLength = TryGetContentLength(response.Headers);
 
             using (await resultLock.Lock(cancellationToken).NoSync())
@@ -430,6 +484,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 
             if (body.Length == 0)
                 return false;
+
+            body = PrepareTextResourceForSave(rootUri, resourceUri, body, isHtmlDocument, contentType, options);
 
             using (await resultLock.Lock(cancellationToken).NoSync())
             {
@@ -522,6 +578,109 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         return rewritten;
     }
 
+    private async ValueTask<string> PrepareHtmlForSave(Uri rootUri, string html, PlaywrightCrawlOptions options,
+        CancellationToken cancellationToken)
+    {
+        if (options.RewriteSameOriginAbsoluteUrls)
+            html = RewriteSameOriginAbsoluteUrls(rootUri, html);
+
+        return await PrettyPrintHtmlIfEnabled(html, options, cancellationToken).NoSync();
+    }
+
+    private static byte[] PrepareTextResourceForSave(Uri rootUri, Uri resourceUri, byte[] bytes, bool isHtmlDocument,
+        string? contentType, PlaywrightCrawlOptions options)
+    {
+        if (!options.RewriteSameOriginAbsoluteUrls || !ShouldRewriteSameOriginAbsoluteUrls(resourceUri, isHtmlDocument, contentType))
+            return bytes;
+
+        string text = Encoding.UTF8.GetString(bytes);
+        string rewritten = RewriteSameOriginAbsoluteUrls(rootUri, text);
+
+        return string.Equals(text, rewritten, StringComparison.Ordinal) ? bytes : Encoding.UTF8.GetBytes(rewritten);
+    }
+
+    private static string RewriteSameOriginAbsoluteUrls(Uri rootUri, string html)
+    {
+        if (html.IsNullOrWhiteSpace())
+            return html;
+
+        string authorityPattern = BuildSameOriginAuthorityPattern(rootUri);
+        string pattern =
+            $@"(?:(?:{Regex.Escape(rootUri.Scheme)}:)?//){authorityPattern}(?:(?<marker>[/?#])|(?=$|[""'<>\s)\]}}]))";
+
+        return Regex.Replace(html, pattern, match =>
+        {
+            string marker = match.Groups["marker"].Value;
+
+            return marker switch
+            {
+                "" => "/",
+                "/" => "/",
+                _ => "/" + marker
+            };
+        }, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
+
+    private static string BuildSameOriginAuthorityPattern(Uri rootUri)
+    {
+        string host = rootUri.HostNameType == UriHostNameType.IPv6
+            ? $@"\[{Regex.Escape(rootUri.Host)}\]"
+            : Regex.Escape(rootUri.Host);
+
+        if (!rootUri.IsDefaultPort)
+            return $"{host}:{rootUri.Port}";
+
+        string? defaultPort = null;
+
+        if (string.Equals(rootUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+            defaultPort = "80";
+        else if (string.Equals(rootUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            defaultPort = "443";
+
+        return defaultPort is null ? host : $"{host}(?::{defaultPort})?";
+    }
+
+    private static bool ShouldRewriteSameOriginAbsoluteUrls(Uri resourceUri, bool isHtmlDocument, string? contentType)
+    {
+        if (isHtmlDocument)
+            return true;
+
+        string? normalizedContentType = NormalizeContentType(contentType);
+
+        if (string.Equals(normalizedContentType, "text/css", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalizedContentType, "text/html", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalizedContentType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        string extension = Path.GetExtension(resourceUri.AbsolutePath);
+
+        return extension.Equals(".css", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".html", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".htm", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeDirectDownloadResource(Uri resourceUri)
+    {
+        string extension = Path.GetExtension(resourceUri.AbsolutePath);
+
+        if (extension.IsNullOrWhiteSpace())
+            return false;
+
+        return extension.Equals(".avif", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".css", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".gif", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".ico", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".mjs", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".svg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".webp", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".woff", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".woff2", StringComparison.OrdinalIgnoreCase);
+    }
+
     private async ValueTask<string> PrettyPrintHtmlIfEnabled(string html, PlaywrightCrawlOptions options,
         CancellationToken cancellationToken)
     {
@@ -579,16 +738,17 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             return true;
 
         string path = resourceUri.AbsolutePath;
+        string? contentType = TryGetHeaderValue(response.Headers, "content-type");
 
         if (path.StartsWith("/.well-known/vercel/", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/_vercel/", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/_next/data/", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/_next/flight", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/_next/webpack-hmr", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/_next/image", StringComparison.OrdinalIgnoreCase))
+            path.StartsWith("/_next/webpack-hmr", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        string? contentType = TryGetHeaderValue(response.Headers, "content-type");
+        if (path.StartsWith("/_next/image", StringComparison.OrdinalIgnoreCase) && !IsImageContentType(contentType))
+            return true;
 
         if (contentType is not null && (contentType.Contains("text/x-component", StringComparison.OrdinalIgnoreCase) ||
                                         contentType.Contains("application/x-component",
@@ -606,11 +766,18 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         return false;
     }
 
+    private static bool IsImageContentType(string? contentType)
+    {
+        string? normalized = NormalizeContentType(contentType);
+
+        return normalized is not null && normalized.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool ShouldDirectDownload(Uri resourceUri, string? contentType)
     {
         if (contentType is not null)
         {
-            string normalized = contentType.Split(';', 2, StringSplitOptions.TrimEntries)[0].Trim();
+            string normalized = NormalizeContentType(contentType) ?? "";
 
             if (_directDownloadContentTypes.Contains(normalized))
                 return true;
@@ -642,6 +809,14 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             return null;
 
         return long.TryParse(contentLength, out long length) ? length : null;
+    }
+
+    private static string? NormalizeContentType(string? contentType)
+    {
+        if (contentType.IsNullOrWhiteSpace())
+            return null;
+
+        return contentType.Split(';', 2, StringSplitOptions.TrimEntries)[0].Trim();
     }
 
     private static Dictionary<string, string> BuildDirectDownloadHeaders(

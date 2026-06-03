@@ -185,6 +185,180 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
         return links;
     }
 
+    public async Task<IReadOnlyList<string>> GetPageResourceUrls(IPage page)
+    {
+        string[]? urls = await page.EvaluateAsync<string[]>(
+            """
+            () => {
+                const urls = new Set();
+                const directResourceAttributes = new Set([
+                    'data',
+                    'poster',
+                    'src',
+                    'data-bg',
+                    'data-bg-src',
+                    'data-background',
+                    'data-background-image',
+                    'data-css-url',
+                    'data-js-url',
+                    'data-lazy-src',
+                    'data-original',
+                    'data-script-url',
+                    'data-src',
+                    'data-url'
+                ]);
+                const srcSetAttributes = new Set(['srcset', 'data-lazy-srcset', 'data-srcset']);
+                const resourceExtensions = new Set([
+                    '.avif',
+                    '.css',
+                    '.gif',
+                    '.ico',
+                    '.jpeg',
+                    '.jpg',
+                    '.js',
+                    '.mjs',
+                    '.png',
+                    '.svg',
+                    '.webp',
+                    '.woff',
+                    '.woff2'
+                ]);
+
+                const shouldIgnore = value => {
+                    if (!value) {
+                        return true;
+                    }
+
+                    const normalized = value.trim().toLowerCase();
+
+                    return normalized.length === 0 ||
+                        normalized.startsWith('#') ||
+                        normalized.startsWith('data:') ||
+                        normalized.startsWith('blob:') ||
+                        normalized.startsWith('javascript:') ||
+                        normalized.startsWith('mailto:') ||
+                        normalized.startsWith('tel:');
+                };
+
+                const hasResourceExtension = url => {
+                    try {
+                        const fileName = new URL(url).pathname.split('/').pop() || '';
+                        const extension = fileName.match(/\.[^.]*$/)?.[0]?.toLowerCase();
+
+                        return extension ? resourceExtensions.has(extension) : false;
+                    } catch {
+                        return false;
+                    }
+                };
+
+                const addUrl = (value, allowRootFallback = false) => {
+                    if (shouldIgnore(value)) {
+                        return;
+                    }
+
+                    const trimmed = value.trim();
+                    const shouldUseRootFirst = allowRootFallback && /^(wp-content|wp-includes)\//i.test(trimmed);
+
+                    const addRootFallback = () => {
+                        if (!allowRootFallback ||
+                            trimmed.startsWith('/') ||
+                            trimmed.startsWith('./') ||
+                            trimmed.startsWith('../') ||
+                            /^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+                            return;
+                        }
+
+                        try {
+                            const rootResolved = new URL(`/${trimmed}`, window.location.origin).href;
+
+                            if (hasResourceExtension(rootResolved)) {
+                                urls.add(rootResolved);
+                            }
+                        } catch {
+                        }
+                    };
+
+                    if (shouldUseRootFirst) {
+                        addRootFallback();
+                    }
+
+                    try {
+                        const resolved = new URL(trimmed, document.baseURI).href;
+
+                        if (hasResourceExtension(resolved)) {
+                            urls.add(resolved);
+                        }
+                    } catch {
+                    }
+
+                    if (!shouldUseRootFirst) {
+                        addRootFallback();
+                    }
+                };
+
+                const addSrcSet = value => {
+                    if (shouldIgnore(value)) {
+                        return;
+                    }
+
+                    for (const candidate of value.split(',')) {
+                        addUrl(candidate.trim().split(/\s+/)[0]);
+                    }
+                };
+
+                const addCssUrls = value => {
+                    if (shouldIgnore(value)) {
+                        return;
+                    }
+
+                    for (const match of value.matchAll(/url\((['"]?)(.*?)\1\)/gi)) {
+                        addUrl(match[2]);
+                    }
+                };
+
+                for (const element of document.querySelectorAll('*')) {
+                    for (const attribute of element.attributes) {
+                        const name = attribute.name.toLowerCase();
+                        const value = attribute.value;
+
+                        if (srcSetAttributes.has(name)) {
+                            addSrcSet(value);
+                            continue;
+                        }
+
+                        if (name === 'style') {
+                            addCssUrls(value);
+                            continue;
+                        }
+
+                        if (name === 'href') {
+                            const tagName = element.tagName.toLowerCase();
+                            const rel = (element.getAttribute('rel') || '').toLowerCase();
+
+                            if (tagName === 'link' &&
+                                (rel.includes('stylesheet') || rel.includes('preload') || rel.includes('modulepreload') || rel.includes('icon'))) {
+                                addUrl(value);
+                            }
+
+                            continue;
+                        }
+
+                        if (directResourceAttributes.has(name)) {
+                            addUrl(value, name.startsWith('data-'));
+                        }
+                    }
+                }
+
+                return Array.from(urls);
+            }
+            """);
+
+        if (urls is null || urls.Length == 0)
+            return [];
+
+        return urls;
+    }
+
     public bool IsChallengePage(string? title, string html)
     {
         if (title.HasContent() && (title.Contains("captcha", StringComparison.OrdinalIgnoreCase) || title.Contains("challenge", StringComparison.OrdinalIgnoreCase)
