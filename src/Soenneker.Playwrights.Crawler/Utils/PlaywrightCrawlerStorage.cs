@@ -131,8 +131,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             if (ShouldDirectDownload(resourceUri, contentType))
             {
                 resourceAvailable = await SaveByDirectDownload(rootUri, resourceUri, normalizedUrl, relativePath,
-                    isHtmlDocument, contentType, options, result, savedUrls, resultLock, context.APIRequest, response.Request.Headers,
-                    cancellationToken).NoSync();
+                    isHtmlDocument, contentType, options, result, savedUrls, resultLock, context.APIRequest,
+                    response.Request.Headers, cancellationToken).NoSync();
             }
             else
             {
@@ -182,10 +182,11 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
     {
         var externalResources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var discoveredUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        IReadOnlyDictionary<string, string> requestHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["referer"] = mainDocumentUri.AbsoluteUri
-        };
+        IReadOnlyDictionary<string, string> requestHeaders =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["referer"] = mainDocumentUri.AbsoluteUri
+            };
 
         foreach (string url in urls)
         {
@@ -211,7 +212,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
             if (!_urlUtil.ShouldSaveResource(rootUri, resourceUri, isHtmlDocument: false, options))
                 continue;
 
-            string relativePath = _urlUtil.BuildRelativePath(rootUri, resourceUri, isHtmlDocument: false, contentType: null);
+            string relativePath =
+                _urlUtil.BuildRelativePath(rootUri, resourceUri, isHtmlDocument: false, contentType: null);
             bool resourceAvailable = await SaveByDirectDownload(rootUri, resourceUri, normalizedUrl, relativePath,
                 isHtmlDocument: false, contentType: null, options, result, savedUrls, resultLock, context.APIRequest,
                 requestHeaders, cancellationToken).NoSync();
@@ -590,7 +592,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
     private static byte[] PrepareTextResourceForSave(Uri rootUri, Uri resourceUri, byte[] bytes, bool isHtmlDocument,
         string? contentType, PlaywrightCrawlOptions options)
     {
-        if (!options.RewriteSameOriginAbsoluteUrls || !ShouldRewriteSameOriginAbsoluteUrls(resourceUri, isHtmlDocument, contentType))
+        if (!options.RewriteSameOriginAbsoluteUrls ||
+            !ShouldRewriteSameOriginAbsoluteUrls(resourceUri, isHtmlDocument, contentType))
             return bytes;
 
         string text = Encoding.UTF8.GetString(bytes);

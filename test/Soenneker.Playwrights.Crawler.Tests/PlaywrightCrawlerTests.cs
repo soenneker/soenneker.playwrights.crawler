@@ -172,7 +172,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     //[Skip("Manual")]
-    // [LocalOnly]
+     [LocalOnly]
     [Test]
     public async ValueTask Test()
     {
