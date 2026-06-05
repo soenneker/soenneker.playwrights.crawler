@@ -15,6 +15,9 @@ public sealed class PlaywrightCrawlOptions
     /// </summary>
     public required string Url { get; set; }
 
+    /// <summary>
+    /// Gets or sets channel.
+    /// </summary>
     public string Channel { get; set; } = "chromium";
 
     /// <summary>
