@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Playwright;
 using Soenneker.Playwrights.Crawler.Enums;
 using Soenneker.Playwrights.Extensions.Stealth.Options;
@@ -13,7 +16,18 @@ public sealed class PlaywrightCrawlOptions
     /// <summary>
     /// Absolute HTTP or HTTPS URL to begin crawling from.
     /// </summary>
-    public required string Url { get; set; }
+    public string? Url { get; set; }
+
+    /// <summary>
+    /// Additional absolute HTTP or HTTPS URLs to crawl. All starting URLs share one browser and browser context.
+    /// </summary>
+    public List<string> StartingUrls { get; set; } = [];
+
+    /// <summary>
+    /// Optional exact allowlist for discovered pages. Entries may be absolute URLs or root-relative paths.
+    /// Explicit <see cref="Url"/> and <see cref="StartingUrls"/> are always eligible.
+    /// </summary>
+    public List<string> AllowedPageUrls { get; set; } = [];
 
     /// <summary>
     /// Gets or sets channel.
@@ -23,7 +37,22 @@ public sealed class PlaywrightCrawlOptions
     /// <summary>
     /// Directory where the crawled output should be written.
     /// </summary>
-    public required string SaveDirectory { get; set; }
+    public string? SaveDirectory { get; set; }
+
+    /// <summary>
+    /// Writes captured documents and resources to <see cref="SaveDirectory"/>. Disable for in-memory capture.
+    /// </summary>
+    public bool SaveToDisk { get; set; } = true;
+
+    /// <summary>
+    /// Includes rendered HTML in the returned page results. This is automatically enabled when <see cref="SaveToDisk"/> is false.
+    /// </summary>
+    public bool CaptureRenderedHtml { get; set; }
+
+    /// <summary>
+    /// Discovers and queues links found on rendered pages. Disable to capture only the explicitly supplied starting URLs.
+    /// </summary>
+    public bool DiscoverLinks { get; set; } = true;
 
     /// <summary>
     /// Controls whether to save just HTML documents or all observed page resources as well.
@@ -51,7 +80,7 @@ public sealed class PlaywrightCrawlOptions
     public TimeSpan? MaxDuration { get; set; }
 
     /// <summary>
-    /// When true, only pages on the same host as <see cref="Url"/> are queued for crawling.
+    /// When true, all starting and discovered pages must share the primary starting URL's host.
     /// </summary>
     public bool SameHostOnly { get; set; } = true;
 
@@ -123,6 +152,11 @@ public sealed class PlaywrightCrawlOptions
     public bool UseStealth { get; set; } = true;
 
     /// <summary>
+    /// Additional HTTP headers sent by every page in the shared browser context.
+    /// </summary>
+    public Dictionary<string, string> ExtraHttpHeaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Optional launch settings passed to the stealth extension when <see cref="UseStealth"/> is enabled.
     /// </summary>
     public StealthLaunchOptions? StealthLaunchOptions { get; set; }
@@ -158,6 +192,32 @@ public sealed class PlaywrightCrawlOptions
     /// Additional delay to wait after navigation completes so late-loading assets can settle.
     /// </summary>
     public int PostNavigationDelayMs { get; set; }
+
+    /// <summary>
+    /// Optional JavaScript predicate evaluated after navigation. It must return a boolean and may consume <see cref="ReadinessArgument"/>.
+    /// The crawler polls it until it returns true.
+    /// </summary>
+    public string? ReadinessExpression { get; set; }
+
+    /// <summary>
+    /// Optional serializable argument passed to <see cref="ReadinessExpression"/>.
+    /// </summary>
+    public object? ReadinessArgument { get; set; }
+
+    /// <summary>
+    /// Optional application-specific readiness callback invoked after the JavaScript predicate succeeds.
+    /// </summary>
+    public Func<IPage, CancellationToken, ValueTask>? PageReadinessHandler { get; set; }
+
+    /// <summary>
+    /// Maximum time spent waiting for application readiness. Defaults to <see cref="NavigationTimeoutMs"/>.
+    /// </summary>
+    public int? ReadinessTimeoutMs { get; set; }
+
+    /// <summary>
+    /// Delay between JavaScript readiness predicate evaluations.
+    /// </summary>
+    public int ReadinessPollingIntervalMs { get; set; } = 100;
 
     /// <summary>
     /// Continues crawling when an individual page fails instead of aborting the entire crawl.

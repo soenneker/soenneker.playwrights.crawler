@@ -79,6 +79,11 @@ public sealed class PlaywrightCrawlResult
     public List<PlaywrightCrawlFileResult> Files { get; set; } = [];
 
     /// <summary>
+    /// Rendered pages captured during the crawl.
+    /// </summary>
+    public List<PlaywrightCrawlPageResult> Pages { get; set; } = [];
+
+    /// <summary>
     /// Errors captured while crawling.
     /// </summary>
     public List<PlaywrightCrawlError> Errors { get; set; } = [];

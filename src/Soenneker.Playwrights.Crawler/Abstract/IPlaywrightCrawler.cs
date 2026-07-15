@@ -10,7 +10,7 @@ namespace Soenneker.Playwrights.Crawler.Abstract;
 public interface IPlaywrightCrawler
 {
     /// <summary>
-    /// Crawls the configured site and writes mirrored output to disk.
+    /// Crawls or captures the configured URLs and optionally writes mirrored output to disk.
     /// </summary>
     ValueTask<PlaywrightCrawlResult> Crawl(PlaywrightCrawlOptions options, CancellationToken cancellationToken = default);
 }

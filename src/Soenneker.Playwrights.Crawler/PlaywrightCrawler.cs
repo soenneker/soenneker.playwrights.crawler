@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -47,8 +48,23 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         ArgumentNullException.ThrowIfNull(options);
 
         PlaywrightCrawlPolicy policy = options.Policy ?? new PlaywrightCrawlPolicy();
-        Uri rootUri = _urlUtil.ValidateAndNormalizeRootUrl(options.Url);
-        string saveDirectory = Path.GetFullPath(options.SaveDirectory);
+        IReadOnlyList<Uri> startingUris = ResolveStartingUris(options);
+        Uri rootUri = startingUris[0];
+        string? saveDirectory = null;
+
+        if (options.SameHostOnly && startingUris.Any(uri => !_urlUtil.UrisShareHost(rootUri, uri)))
+            throw new ArgumentException("All starting URLs must share a host when SameHostOnly is true.", nameof(options));
+
+        if (options.SaveToDisk)
+        {
+            if (string.IsNullOrWhiteSpace(options.SaveDirectory))
+                throw new ArgumentException("SaveDirectory is required when SaveToDisk is true.", nameof(options));
+
+            saveDirectory = Path.GetFullPath(options.SaveDirectory);
+        }
+
+        if (!options.SaveToDisk && options.Mode == PlaywrightCrawlMode.Full)
+            throw new ArgumentException("Full resource capture requires SaveToDisk to be true.", nameof(options));
 
         if (options.MaxDepth < 0)
             throw new ArgumentOutOfRangeException(nameof(options), "MaxDepth cannot be negative.");
@@ -71,6 +87,12 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         if (options.PostNavigationDelayMs < 0)
             throw new ArgumentOutOfRangeException(nameof(options), "PostNavigationDelayMs cannot be negative.");
 
+        if (options.ReadinessTimeoutMs is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "ReadinessTimeoutMs must be greater than zero when specified.");
+
+        if (options.ReadinessPollingIntervalMs <= 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "ReadinessPollingIntervalMs must be greater than zero.");
+
         if (options.LazyLoadScrollStepPx <= 0)
             throw new ArgumentOutOfRangeException(nameof(options), "LazyLoadScrollStepPx must be greater than zero.");
 
@@ -82,29 +104,33 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
         _policyUtil.ValidatePolicy(policy);
 
-        _logger.LogInformation("Starting crawl for {Url} into {SaveDirectory} (mode: {Mode}, maxDepth: {MaxDepth})",
-            rootUri.AbsoluteUri, saveDirectory, options.Mode, options.MaxDepth);
+        _logger.LogInformation("Starting crawl for {UrlCount} starting URL(s) into {SaveDirectory} (mode: {Mode}, maxDepth: {MaxDepth})",
+            startingUris.Count, saveDirectory, options.Mode, options.MaxDepth);
 
-        if (options.ClearSaveDirectory)
+        if (options.SaveToDisk && options.ClearSaveDirectory)
         {
-            await _storage.DeleteDirectory(saveDirectory, cancellationToken).NoSync();
+            await _storage.DeleteDirectory(saveDirectory!, cancellationToken).NoSync();
         }
 
-        await _storage.CreateDirectory(saveDirectory, cancellationToken).NoSync();
+        if (options.SaveToDisk)
+            await _storage.CreateDirectory(saveDirectory!, cancellationToken).NoSync();
 
         var result = new PlaywrightCrawlResult
         {
             RootUrl = rootUri.AbsoluteUri,
-            SaveDirectory = saveDirectory,
+            SaveDirectory = saveDirectory ?? string.Empty,
             StartedAtUtc = DateTimeOffset.UtcNow,
-            PagesDiscovered = 1
+            PagesDiscovered = startingUris.Count
         };
 
         var stopwatch = Stopwatch.StartNew();
         var visitedPages = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         var queuedPages = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
-        queuedPages.TryAdd(
-            _urlUtil.NormalizePageUrl(rootUri, options.IgnoreQueryStringsInDuplicateDetection).AbsoluteUri, 0);
+        foreach (Uri startingUri in startingUris)
+        {
+            queuedPages.TryAdd(
+                _urlUtil.NormalizePageUrl(startingUri, options.IgnoreQueryStringsInDuplicateDetection).AbsoluteUri, 0);
+        }
 
         var savedUrls = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         var globalSemaphore = new SemaphoreSlim(policy.GlobalMaxConcurrency, policy.GlobalMaxConcurrency);
@@ -120,10 +146,13 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
         var pendingCounter = new PendingCounter
         {
-            Count = 1
+            Count = startingUris.Count
         };
 
-        frontier.Writer.TryWrite(new CrawlTarget(rootUri, 0));
+        foreach (Uri startingUri in startingUris)
+        {
+            frontier.Writer.TryWrite(new CrawlTarget(startingUri, 0));
+        }
 
         await _playwrightInstallationUtil.EnsureInstalled(cancellationToken).NoSync();
 
@@ -279,6 +308,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
             IResponse? navigationResponse = await _policyUtil.NavigateWithPolicy(page, target.Uri, options, domainState,
                 globalSemaphore, ipSemaphore, cancellationToken).NoSync();
 
+            await WaitForPageReadiness(page, options, cancellationToken).NoSync();
+
             int postNavigationDelayMs = _policyUtil.GetPostNavigationDelayMs(options, policy);
 
             if (postNavigationDelayMs > 0)
@@ -296,6 +327,18 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
             string html = await page.ContentAsync().NoSync();
 
+            using (await resultLock.Lock(cancellationToken).NoSync())
+            {
+                result.Pages.Add(new PlaywrightCrawlPageResult
+                {
+                    RequestedUrl = target.Uri.AbsoluteUri,
+                    FinalUrl = finalUri.AbsoluteUri,
+                    StatusCode = navigationResponse?.Status,
+                    Title = title,
+                    Html = options.CaptureRenderedHtml || !options.SaveToDisk ? html : null
+                });
+            }
+
             if (_urlUtil.IsChallengePage(title, html))
             {
                 await _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, 429,
@@ -307,10 +350,13 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                     "403 response received", cancellationToken).NoSync();
             }
 
-            await _storage.SaveRenderedDocument(rootUri, finalUri, html, options, result, savedUrls, resultLock,
-                cancellationToken).NoSync();
+            if (options.SaveToDisk)
+            {
+                await _storage.SaveRenderedDocument(rootUri, finalUri, html, options, result, savedUrls, resultLock,
+                    cancellationToken).NoSync();
+            }
 
-            if (options.Mode == PlaywrightCrawlMode.Full)
+            if (options.SaveToDisk && options.Mode == PlaywrightCrawlMode.Full)
             {
                 List<IResponse> responseSnapshot;
 
@@ -349,7 +395,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                 }
             }
 
-            if (target.Depth < options.MaxDepth && !_policyUtil.ShouldStop(options, result, stopwatch))
+            if (options.DiscoverLinks && target.Depth < options.MaxDepth && !_policyUtil.ShouldStop(options, result, stopwatch))
             {
                 IReadOnlyList<string> discoveredLinks = await _urlUtil.GetPageLinks(page).NoSync();
 
@@ -404,6 +450,77 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
             await page.CloseAsync().NoSync();
         }
+    }
+
+    private IReadOnlyList<Uri> ResolveStartingUris(PlaywrightCrawlOptions options)
+    {
+        var urls = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(options.Url))
+            urls.Add(options.Url);
+
+        if (options.StartingUrls is { Count: > 0 })
+            urls.AddRange(options.StartingUrls);
+
+        if (urls.Count == 0)
+            throw new ArgumentException("Url or at least one StartingUrls entry is required.", nameof(options));
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<Uri>(urls.Count);
+
+        foreach (string url in urls)
+        {
+            Uri uri = _urlUtil.ValidateAndNormalizeRootUrl(url);
+            string normalized = _urlUtil.NormalizePageUrl(uri, options.IgnoreQueryStringsInDuplicateDetection).AbsoluteUri;
+
+            if (seen.Add(normalized))
+                result.Add(uri);
+        }
+
+        return result;
+    }
+
+    private static async ValueTask WaitForPageReadiness(IPage page, PlaywrightCrawlOptions options, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(options.ReadinessExpression) && options.PageReadinessHandler is null)
+            return;
+
+        int timeoutMs = options.ReadinessTimeoutMs ?? options.NavigationTimeoutMs;
+        var stopwatch = Stopwatch.StartNew();
+
+        if (!string.IsNullOrWhiteSpace(options.ReadinessExpression))
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                int remainingMs = timeoutMs - (int)stopwatch.ElapsedMilliseconds;
+
+                if (remainingMs <= 0)
+                    throw new TimeoutException($"Page readiness predicate did not complete within {timeoutMs}ms for {page.Url}.");
+
+                bool ready = await page.EvaluateAsync<bool>(options.ReadinessExpression, options.ReadinessArgument)
+                                       .WaitAsync(TimeSpan.FromMilliseconds(remainingMs), cancellationToken);
+
+                if (ready)
+                    break;
+
+                await Task.Delay(Math.Min(options.ReadinessPollingIntervalMs, remainingMs), cancellationToken).NoSync();
+            }
+        }
+
+        if (options.PageReadinessHandler is null)
+            return;
+
+        int handlerRemainingMs = timeoutMs - (int)stopwatch.ElapsedMilliseconds;
+
+        if (handlerRemainingMs <= 0)
+            throw new TimeoutException($"Page readiness handler did not complete within {timeoutMs}ms for {page.Url}.");
+
+        await options.PageReadinessHandler(page, cancellationToken)
+                     .AsTask()
+                     .WaitAsync(TimeSpan.FromMilliseconds(handlerRemainingMs), cancellationToken)
+                     .NoSync();
     }
 
     private async ValueTask TriggerLazyLoadedResources(IPage page, PlaywrightCrawlOptions options,

@@ -24,13 +24,14 @@ internal sealed class PlaywrightCrawlerBrowserUtil : IPlaywrightCrawlerBrowserUt
 
     public ValueTask<IBrowserContext> CreateBrowserContext(IBrowser browser, PlaywrightCrawlOptions options)
     {
-        if (options.UseStealth)
-            return browser.CreateStealthContext(new BrowserNewContextOptions(), options.StealthContextOptions);
-
         var contextOptions = new BrowserNewContextOptions
         {
+            ExtraHTTPHeaders = options.ExtraHttpHeaders.Count > 0 ? options.ExtraHttpHeaders : null,
             Proxy = options.StealthContextOptions?.Proxy
         };
+
+        if (options.UseStealth)
+            return browser.CreateStealthContext(contextOptions, options.StealthContextOptions);
 
         return new ValueTask<IBrowserContext>(browser.NewContextAsync(contextOptions));
     }

@@ -84,6 +84,37 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [Test]
+    public void ShouldQueuePage_honors_root_relative_allowlist()
+    {
+        Uri rootUri = _urlUtil.ValidateAndNormalizeRootUrl("https://example.com");
+        var options = new PlaywrightCrawlOptions
+        {
+            Url = rootUri.AbsoluteUri,
+            SaveDirectory = Path.GetTempPath(),
+            AllowedPageUrls = ["/about", "/pricing"]
+        };
+
+        _urlUtil.ShouldQueuePage(rootUri, new Uri(rootUri, "/about"), options).Should().BeTrue();
+        _urlUtil.ShouldQueuePage(rootUri, new Uri(rootUri, "/contact"), options).Should().BeFalse();
+    }
+
+    [Test]
+    public void ShouldQueuePage_honors_absolute_allowlist_and_query_normalization()
+    {
+        Uri rootUri = _urlUtil.ValidateAndNormalizeRootUrl("https://example.com");
+        var options = new PlaywrightCrawlOptions
+        {
+            Url = rootUri.AbsoluteUri,
+            SaveDirectory = Path.GetTempPath(),
+            IgnoreQueryStringsInDuplicateDetection = true,
+            AllowedPageUrls = ["https://example.com/about?source=allowlist"]
+        };
+
+        _urlUtil.ShouldQueuePage(rootUri, new Uri("https://example.com/about?source=page"), options).Should().BeTrue();
+        _urlUtil.ShouldQueuePage(rootUri, new Uri("https://other.example.com/about"), options).Should().BeFalse();
+    }
+
+    [Test]
     public void Css_text_resource_rewrites_same_origin_absolute_urls_to_root_relative()
     {
         Uri rootUri = _urlUtil.ValidateAndNormalizeRootUrl("https://firstfamilyinsurance.com");

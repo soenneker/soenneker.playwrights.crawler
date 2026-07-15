@@ -159,7 +159,35 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
         if (options.SameHostOnly && !UrisShareHost(rootUri, candidate))
             return false;
 
+        if (options.AllowedPageUrls.Count > 0 && !IsAllowedPage(rootUri, candidate, options))
+            return false;
+
         return true;
+    }
+
+    private bool IsAllowedPage(Uri rootUri, Uri candidate, PlaywrightCrawlOptions options)
+    {
+        string normalizedCandidate = NormalizePageUrl(candidate, options.IgnoreQueryStringsInDuplicateDetection).AbsoluteUri;
+
+        foreach (string allowedPageUrl in options.AllowedPageUrls)
+        {
+            Uri? allowedUri = null;
+
+            if (TryNormalizeHttpUrl(allowedPageUrl, out Uri? absoluteAllowedUri))
+                allowedUri = absoluteAllowedUri;
+            else if (allowedPageUrl.StartsWith("/", StringComparison.Ordinal) && Uri.TryCreate(rootUri, allowedPageUrl, out Uri? relativeAllowedUri))
+                allowedUri = NormalizeUrl(relativeAllowedUri);
+
+            if (allowedUri is null)
+                continue;
+
+            string normalizedAllowed = NormalizePageUrl(allowedUri, options.IgnoreQueryStringsInDuplicateDetection).AbsoluteUri;
+
+            if (string.Equals(normalizedAllowed, normalizedCandidate, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     public bool ShouldSaveResource(Uri rootUri, Uri resourceUri, bool isHtmlDocument, PlaywrightCrawlOptions options)
