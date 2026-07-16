@@ -326,6 +326,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
             string title = await page.TitleAsync().NoSync();
 
             string html = await page.ContentAsync().NoSync();
+            bool hasTurnstile = _urlUtil.HasTurnstile(html);
+            bool isChallengePage = _urlUtil.IsChallengePage(title, html);
 
             var pageResult = new PlaywrightCrawlPageResult
             {
@@ -333,6 +335,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                 FinalUrl = finalUri.AbsoluteUri,
                 StatusCode = navigationResponse?.Status,
                 Title = title,
+                HasTurnstile = hasTurnstile,
+                IsChallengePage = isChallengePage,
                 Html = options.CaptureRenderedHtml || !options.SaveToDisk ? html : null
             };
 
@@ -341,7 +345,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                 result.Pages.Add(pageResult);
             }
 
-            if (_urlUtil.IsChallengePage(title, html))
+            if (isChallengePage)
             {
                 await _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, navigationResponse?.Status ?? 0,
                     "challenge/captcha page detected", cancellationToken).NoSync();

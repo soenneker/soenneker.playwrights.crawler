@@ -387,6 +387,15 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
         return urls;
     }
 
+    public bool HasTurnstile(string html)
+    {
+        return html.Contains("cf-turnstile", StringComparison.OrdinalIgnoreCase)
+               || html.Contains("challenges.cloudflare.com/turnstile/", StringComparison.OrdinalIgnoreCase)
+               || html.Contains("/cdn-cgi/challenge-platform/", StringComparison.OrdinalIgnoreCase)
+               && html.Contains("/turnstile/", StringComparison.OrdinalIgnoreCase)
+               || html.Contains("turnstile.render(", StringComparison.OrdinalIgnoreCase);
+    }
+
     public bool IsChallengePage(string? title, string html)
     {
         if (title.HasContent())
@@ -401,8 +410,9 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
             }
         }
 
-        return html.Contains("/cdn-cgi/challenge-platform/", StringComparison.OrdinalIgnoreCase)
-               || html.Contains("cf-chl-", StringComparison.OrdinalIgnoreCase)
+        return html.Contains("/orchestrate/chl_page/", StringComparison.OrdinalIgnoreCase)
+               || html.Contains("window._cf_chl_opt", StringComparison.OrdinalIgnoreCase)
+               || html.Contains("cf_chl_opt", StringComparison.OrdinalIgnoreCase)
                || html.Contains("cf-challenge-running", StringComparison.OrdinalIgnoreCase)
                || html.Contains("verify you are human", StringComparison.OrdinalIgnoreCase)
                || html.Contains("attention required! | cloudflare", StringComparison.OrdinalIgnoreCase);

@@ -26,6 +26,17 @@ public sealed class PlaywrightCrawlPageResult
     public required string Title { get; set; }
 
     /// <summary>
+    /// Whether the rendered page contains a Cloudflare Turnstile widget.
+    /// </summary>
+    public bool HasTurnstile { get; set; }
+
+    /// <summary>
+    /// Whether the rendered document is a browser challenge or CAPTCHA interstitial.
+    /// A normally rendered page containing an embedded Turnstile widget is not a challenge page.
+    /// </summary>
+    public bool IsChallengePage { get; set; }
+
+    /// <summary>
     /// Rendered HTML when in-memory capture is enabled.
     /// </summary>
     public string? Html { get; set; }

@@ -134,6 +134,36 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [Test]
+    public void Turnstile_widget_is_detected_without_treating_the_page_as_a_challenge()
+    {
+        const string html = """
+                            <html>
+                            <head><title>Contact | Leadping</title></head>
+                            <body>
+                              <main>Contact us</main>
+                              <div class="cf-turnstile" data-sitekey="site-key"></div>
+                              <iframe src="/cdn-cgi/challenge-platform/h/g/turnstile/if/ov2/av0/rcv"></iframe>
+                            </body>
+                            </html>
+                            """;
+
+        _urlUtil.HasTurnstile(html).Should().BeTrue();
+        _urlUtil.IsChallengePage("Contact | Leadping", html).Should().BeFalse();
+    }
+
+    [Test]
+    public void IsChallengePage_does_not_treat_turnstile_api_script_as_a_challenge()
+    {
+        const string html = """
+                            <html><head><title>Sign up | Leadping</title></head>
+                            <body><script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script></body></html>
+                            """;
+
+        _urlUtil.HasTurnstile(html).Should().BeTrue();
+        _urlUtil.IsChallengePage("Sign up | Leadping", html).Should().BeFalse();
+    }
+
+    [Test]
     public void IsChallengePage_detects_cloudflare_challenge_runtime_markup()
     {
         const string html = """

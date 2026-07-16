@@ -94,6 +94,13 @@ public interface IPlaywrightCrawlerUrlUtil
     Task<IReadOnlyList<string>> GetPageResourceUrls(IPage page);
 
     /// <summary>
+    /// Determines whether rendered HTML contains a Cloudflare Turnstile widget.
+    /// </summary>
+    /// <param name="html">The rendered HTML.</param>
+    /// <returns>Whether Turnstile is present.</returns>
+    bool HasTurnstile(string html);
+
+    /// <summary>
     /// Executes the is challenge page operation.
     /// </summary>
     /// <param name="title">The title.</param>
