@@ -389,16 +389,23 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
 
     public bool IsChallengePage(string? title, string html)
     {
-        if (title.HasContent() && (title.Contains("captcha", StringComparison.OrdinalIgnoreCase) || title.Contains("challenge", StringComparison.OrdinalIgnoreCase)
-                                   || title.Contains("verify", StringComparison.OrdinalIgnoreCase)))
-            return true;
+        if (title.HasContent())
+        {
+            if (title.Contains("just a moment", StringComparison.OrdinalIgnoreCase)
+                || title.Contains("verify you are human", StringComparison.OrdinalIgnoreCase)
+                || title.Contains("attention required", StringComparison.OrdinalIgnoreCase)
+                || title.Contains("security verification", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(title.Trim(), "captcha", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
 
-        return html.Contains("captcha", StringComparison.OrdinalIgnoreCase)
-               || html.Contains("cf-challenge", StringComparison.OrdinalIgnoreCase)
+        return html.Contains("/cdn-cgi/challenge-platform/", StringComparison.OrdinalIgnoreCase)
+               || html.Contains("cf-chl-", StringComparison.OrdinalIgnoreCase)
+               || html.Contains("cf-challenge-running", StringComparison.OrdinalIgnoreCase)
                || html.Contains("verify you are human", StringComparison.OrdinalIgnoreCase)
-               || html.Contains("attention required", StringComparison.OrdinalIgnoreCase)
-               || html.Contains("g-recaptcha", StringComparison.OrdinalIgnoreCase)
-               || html.Contains("hcaptcha", StringComparison.OrdinalIgnoreCase);
+               || html.Contains("attention required! | cloudflare", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<string> ResolveIpKey(Uri uri, CancellationToken cancellationToken)

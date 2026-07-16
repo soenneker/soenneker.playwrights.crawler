@@ -115,6 +115,38 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [Test]
+    public void IsChallengePage_does_not_treat_application_captcha_components_as_a_challenge()
+    {
+        const string html = """
+                            <html>
+                            <head><title>Acceptable Use | Leadping</title></head>
+                            <body><script>self.__next_f.push([1, "CaptchaProvider"]);</script></body>
+                            </html>
+                            """;
+
+        _urlUtil.IsChallengePage("Acceptable Use | Leadping", html).Should().BeFalse();
+    }
+
+    [Test]
+    public void IsChallengePage_does_not_treat_normal_verification_pages_as_a_challenge()
+    {
+        _urlUtil.IsChallengePage("Verify your email", "<html><body>Check your inbox.</body></html>").Should().BeFalse();
+    }
+
+    [Test]
+    public void IsChallengePage_detects_cloudflare_challenge_runtime_markup()
+    {
+        const string html = """
+                            <html>
+                            <head><title>Just a moment...</title></head>
+                            <body><script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1"></script></body>
+                            </html>
+                            """;
+
+        _urlUtil.IsChallengePage("Just a moment...", html).Should().BeTrue();
+    }
+
+    [Test]
     public void Css_text_resource_rewrites_same_origin_absolute_urls_to_root_relative()
     {
         Uri rootUri = _urlUtil.ValidateAndNormalizeRootUrl("https://firstfamilyinsurance.com");

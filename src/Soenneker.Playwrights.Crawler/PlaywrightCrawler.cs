@@ -341,7 +341,7 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
             if (_urlUtil.IsChallengePage(title, html))
             {
-                await _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, 429,
+                await _policyUtil.HandleBlockingSignal(_logger, domainState, policy, options.ThrottleMode, navigationResponse?.Status ?? 0,
                     "challenge/captcha page detected", cancellationToken).NoSync();
             }
             else if (navigationResponse?.Status == 403)

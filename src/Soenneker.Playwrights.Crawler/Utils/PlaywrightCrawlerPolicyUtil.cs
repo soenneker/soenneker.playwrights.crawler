@@ -275,7 +275,10 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
     public async ValueTask HandleBlockingSignal(ILogger logger, CrawlerDomainState domainState, PlaywrightCrawlPolicy policy,
         PlaywrightCrawlThrottleMode throttleMode, int statusCode, string reason, CancellationToken cancellationToken)
     {
-        logger.LogWarning("Domain blocking signal detected for {DomainKey}: {Reason} (status {StatusCode})", domainState.DomainKey, reason, statusCode);
+        if (statusCode > 0)
+            logger.LogWarning("Domain blocking signal detected for {DomainKey}: {Reason} (navigation status {StatusCode})", domainState.DomainKey, reason, statusCode);
+        else
+            logger.LogWarning("Domain blocking signal detected for {DomainKey}: {Reason} (navigation returned no status)", domainState.DomainKey, reason);
 
         using (await domainState.StateLock.Lock(cancellationToken).NoSync())
         {
