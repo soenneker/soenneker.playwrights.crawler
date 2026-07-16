@@ -77,9 +77,19 @@ public sealed class PlaywrightCrawlPolicy
     public int CooldownDurationMs { get; set; } = 1_800_000;
 
     /// <summary>
-    /// Median navigation duration threshold that triggers slow mode.
+    /// Maximum time a crawl operation may wait for adaptive throttling before failing the page.
+    /// </summary>
+    public int MaximumThrottleWaitMs { get; set; } = 120_000;
+
+    /// <summary>
+    /// Median main-document HTTP response duration threshold that triggers slow mode.
     /// </summary>
     public int SlowModeMedianResponseThresholdMs { get; set; } = 8_000;
+
+    /// <summary>
+    /// Minimum number of navigation timings required before median response time can trigger slow mode.
+    /// </summary>
+    public int MinimumResponseTimeSamplesForSlowMode { get; set; } = 4;
 
     /// <summary>
     /// Minimum post-navigation jitter applied between page transitions when no explicit fixed delay is configured.

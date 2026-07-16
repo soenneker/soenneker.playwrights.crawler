@@ -36,6 +36,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     [Test]
     public void Default()
     {
+        new PlaywrightCrawlPolicy().MaximumThrottleWaitMs.Should().Be(120_000);
     }
 
     [LocalOnly]
@@ -72,6 +73,67 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
 
         stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromMilliseconds(250));
         domainState.LastRequestUtc.HasValue.Should().BeTrue();
+    }
+
+    [Test]
+    public async Task EnsureDomainRequestAllowed_fails_instead_of_waiting_for_an_extreme_cooldown()
+    {
+        var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)
+        {
+            Mode = CrawlerDomainMode.Cooldown,
+            CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30)
+        };
+        var policy = new PlaywrightCrawlPolicy
+        {
+            MaximumThrottleWaitMs = 100
+        };
+
+        Func<Task> action = async () => await _policyUtil.EnsureDomainRequestAllowed(domainState, policy,
+            PlaywrightCrawlThrottleMode.Automatic, CancellationToken.None);
+
+        await action.Should().ThrowAsync<TimeoutException>().WithMessage("*exceeds the configured maximum*");
+    }
+
+    [Test]
+    public async Task AcquireDomainConcurrency_fails_instead_of_polling_for_an_extreme_cooldown()
+    {
+        var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)
+        {
+            Mode = CrawlerDomainMode.Cooldown,
+            CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30)
+        };
+        var policy = new PlaywrightCrawlPolicy
+        {
+            MaximumThrottleWaitMs = 100
+        };
+
+        Func<Task> action = async () => await _policyUtil.AcquireDomainConcurrency(domainState, policy,
+            PlaywrightCrawlThrottleMode.Automatic, CancellationToken.None);
+
+        await action.Should().ThrowAsync<TimeoutException>().WithMessage("*exceeds the configured maximum*");
+    }
+
+    [Test]
+    public async Task Response_time_slow_mode_requires_the_configured_minimum_sample_count()
+    {
+        var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1);
+        var policy = new PlaywrightCrawlPolicy
+        {
+            MinimumResponseTimeSamplesForSlowMode = 3,
+            SlowModeMedianResponseThresholdMs = 8_000
+        };
+
+        await _policyUtil.RecordNavigationOutcome(domainState, policy, PlaywrightCrawlThrottleMode.Automatic, 200, 20_000, true,
+            CancellationToken.None);
+        await _policyUtil.RecordNavigationOutcome(domainState, policy, PlaywrightCrawlThrottleMode.Automatic, 200, 20_000, true,
+            CancellationToken.None);
+
+        domainState.Mode.Should().Be(CrawlerDomainMode.Normal);
+
+        await _policyUtil.RecordNavigationOutcome(domainState, policy, PlaywrightCrawlThrottleMode.Automatic, 200, 20_000, true,
+            CancellationToken.None);
+
+        domainState.Mode.Should().Be(CrawlerDomainMode.Slow);
     }
 
     [Test]
@@ -264,8 +326,8 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
         }
     }
 
-    //[Skip("Manual")]
-     [LocalOnly]
+    [Skip("Manual")]
+    [LocalOnly]
     [Test]
     public async ValueTask Test()
     {

@@ -70,7 +70,11 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
                     stopwatch.Stop();
 
-                    await RecordNavigationOutcome(domainState, policy, options.ThrottleMode, response?.Status, stopwatch.ElapsedMilliseconds,
+                    long responseDurationMs = GetResponseDurationMs(response, stopwatch.ElapsedMilliseconds);
+                    _logger.LogDebug("Navigation to {Url} completed in {NavigationElapsedMs}ms; document response took {ResponseDurationMs}ms",
+                        targetUri.AbsoluteUri, stopwatch.ElapsedMilliseconds, responseDurationMs);
+
+                    await RecordNavigationOutcome(domainState, policy, options.ThrottleMode, response?.Status, responseDurationMs,
                         response?.Ok ?? false, cancellationToken).NoSync();
 
                     if (response is not null && IsRetryableStatusCode(response.Status) && attempt < policy.MaxRetries)
@@ -155,6 +159,8 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
             if (effectiveWait > TimeSpan.Zero)
             {
+                ThrowIfThrottleWaitExceedsMaximum(domainState, policy, effectiveWait);
+
                 _logger.LogDebug(
                     "Throttling domain {DomainKey} for {DelayMs}ms (mode: {Mode}, cooldownMs: {CooldownMs}, requestDelayMs: {RequestDelayMs}, pageDelayMs: {PageDelayMs})",
                     domainState.DomainKey, (int)effectiveWait.TotalMilliseconds, domainState.Mode, (int)cooldownWait.TotalMilliseconds,
@@ -200,6 +206,14 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
                 {
                     DateTimeOffset now = DateTimeOffset.UtcNow;
                     RefreshDomainModeUnsafe(domainState, now);
+
+                    if (domainState.Mode == CrawlerDomainMode.Cooldown && domainState.CooldownUntilUtc.HasValue)
+                    {
+                        TimeSpan cooldownWait = domainState.CooldownUntilUtc.Value - now;
+
+                        if (cooldownWait > TimeSpan.Zero)
+                            ThrowIfThrottleWaitExceedsMaximum(domainState, policy, cooldownWait);
+                    }
 
                     int allowedConcurrency = domainState.Mode == CrawlerDomainMode.Slow
                         ? policy.SlowModePerDomainMaxConcurrency
@@ -382,6 +396,12 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
         if (policy.MaxRetries < 0)
             throw new ArgumentOutOfRangeException(nameof(policy), "MaxRetries cannot be negative.");
+
+        if (policy.MaximumThrottleWaitMs <= 0)
+            throw new ArgumentOutOfRangeException(nameof(policy), "MaximumThrottleWaitMs must be greater than zero.");
+
+        if (policy.MinimumResponseTimeSamplesForSlowMode <= 0)
+            throw new ArgumentOutOfRangeException(nameof(policy), "MinimumResponseTimeSamplesForSlowMode must be greater than zero.");
     }
 
     private static void RefreshDomainModeUnsafe(CrawlerDomainState domainState, DateTimeOffset now)
@@ -410,7 +430,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
             return;
         }
 
-        if (domainState.RecentResponseTimesMs.Count > 0)
+        if (domainState.RecentResponseTimesMs.Count >= policy.MinimumResponseTimeSamplesForSlowMode)
         {
             List<long> ordered = [.. domainState.RecentResponseTimesMs.OrderBy(static value => value)];
             long median = ordered[ordered.Count / 2];
@@ -476,6 +496,28 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
     private static TimeSpan Max(TimeSpan first, TimeSpan second)
     {
         return first >= second ? first : second;
+    }
+
+    private static long GetResponseDurationMs(IResponse? response, long navigationElapsedMs)
+    {
+        if (response is null)
+            return navigationElapsedMs;
+
+        RequestTimingResult timing = response.Request.Timing;
+
+        if (timing.RequestStart < 0 || timing.ResponseEnd < timing.RequestStart)
+            return navigationElapsedMs;
+
+        return Math.Max(0, (long)Math.Ceiling(timing.ResponseEnd - timing.RequestStart));
+    }
+
+    private static void ThrowIfThrottleWaitExceedsMaximum(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, TimeSpan wait)
+    {
+        if (wait.TotalMilliseconds <= policy.MaximumThrottleWaitMs)
+            return;
+
+        throw new TimeoutException(
+            $"Domain '{domainState.DomainKey}' requires a throttle wait of {(long)wait.TotalMilliseconds}ms, which exceeds the configured maximum of {policy.MaximumThrottleWaitMs}ms.");
     }
 
     private static bool IsRetryableStatusCode(int statusCode)

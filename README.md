@@ -246,6 +246,7 @@ Examples:
 - Playwright browser installation is ensured automatically before the crawl starts.
 - Multiple starting URLs use one Playwright instance, browser, and browser context.
 - `PageCompletedHandler` callbacks can run concurrently when the crawl uses multiple workers.
+- Adaptive throttling uses main-document HTTP timing rather than total browser readiness, requires multiple samples before latency can trigger slow mode, and fails a page instead of waiting longer than `Policy.MaximumThrottleWaitMs`.
 - Setting `DiscoverLinks = false` captures only explicitly supplied starting URLs.
 - Setting `SaveToDisk = false` avoids output-directory creation and returns rendered HTML through `Pages`.
 - Duplicate detection ignores query strings by default.
