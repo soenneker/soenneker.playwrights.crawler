@@ -138,7 +138,12 @@ PlaywrightCrawlResult result = await crawler.Crawl(new PlaywrightCrawlOptions
     },
     ReadinessExpression =
         "() => document.readyState === 'complete'" +
-        " && !!document.querySelector('main')"
+        " && !!document.querySelector('main')",
+    PageCompletedHandler = (page, pageResult, cancellationToken) =>
+    {
+        Console.WriteLine($"Completed {pageResult.FinalUrl} with status {pageResult.StatusCode}");
+        return ValueTask.CompletedTask;
+    }
 });
 
 foreach (PlaywrightCrawlPageResult page in result.Pages)
@@ -148,6 +153,7 @@ foreach (PlaywrightCrawlPageResult page in result.Pages)
 ```
 
 `PageReadinessHandler` can be used instead of, or after, `ReadinessExpression` when readiness requires application-specific .NET logic.
+`PageCompletedHandler` runs after each successfully processed page and before its live Playwright page is closed.
 
 ## Modes
 
@@ -204,6 +210,7 @@ Saves:
 | `ReadinessExpression` | Optional JavaScript boolean predicate polled after navigation. |
 | `ReadinessArgument` | Optional serializable argument supplied to the JavaScript readiness predicate. |
 | `PageReadinessHandler` | Optional .NET readiness callback invoked after the JavaScript predicate. |
+| `PageCompletedHandler` | Optional async callback invoked with the live page and crawl result after page processing and before the page closes. |
 | `ReadinessTimeoutMs` | Readiness timeout; defaults to `NavigationTimeoutMs`. |
 | `ReadinessPollingIntervalMs` | JavaScript readiness polling interval; defaults to 100 ms. |
 | `ContinueOnPageError` | Continues crawling after an individual page fails. |
@@ -238,6 +245,7 @@ Examples:
 
 - Playwright browser installation is ensured automatically before the crawl starts.
 - Multiple starting URLs use one Playwright instance, browser, and browser context.
+- `PageCompletedHandler` callbacks can run concurrently when the crawl uses multiple workers.
 - Setting `DiscoverLinks = false` captures only explicitly supplied starting URLs.
 - Setting `SaveToDisk = false` avoids output-directory creation and returns rendered HTML through `Pages`.
 - Duplicate detection ignores query strings by default.

@@ -210,6 +210,12 @@ public sealed class PlaywrightCrawlOptions
     public Func<IPage, CancellationToken, ValueTask>? PageReadinessHandler { get; set; }
 
     /// <summary>
+    /// Optional callback invoked after a page has been captured, saved, and processed, but before its browser page is closed.
+    /// The callback receives the live Playwright page and its crawl result. Callbacks may execute concurrently when crawling with multiple workers.
+    /// </summary>
+    public Func<IPage, PlaywrightCrawlPageResult, CancellationToken, ValueTask>? PageCompletedHandler { get; set; }
+
+    /// <summary>
     /// Maximum time spent waiting for application readiness. Defaults to <see cref="NavigationTimeoutMs"/>.
     /// </summary>
     public int? ReadinessTimeoutMs { get; set; }

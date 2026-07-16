@@ -327,16 +327,18 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
             string html = await page.ContentAsync().NoSync();
 
+            var pageResult = new PlaywrightCrawlPageResult
+            {
+                RequestedUrl = target.Uri.AbsoluteUri,
+                FinalUrl = finalUri.AbsoluteUri,
+                StatusCode = navigationResponse?.Status,
+                Title = title,
+                Html = options.CaptureRenderedHtml || !options.SaveToDisk ? html : null
+            };
+
             using (await resultLock.Lock(cancellationToken).NoSync())
             {
-                result.Pages.Add(new PlaywrightCrawlPageResult
-                {
-                    RequestedUrl = target.Uri.AbsoluteUri,
-                    FinalUrl = finalUri.AbsoluteUri,
-                    StatusCode = navigationResponse?.Status,
-                    Title = title,
-                    Html = options.CaptureRenderedHtml || !options.SaveToDisk ? html : null
-                });
+                result.Pages.Add(pageResult);
             }
 
             if (_urlUtil.IsChallengePage(title, html))
@@ -441,6 +443,9 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                     }
                 }
             }
+
+            if (options.PageCompletedHandler is not null)
+                await options.PageCompletedHandler(page, pageResult, cancellationToken).NoSync();
 
             await _policyUtil.MarkPageCompleted(domainState, cancellationToken).NoSync();
         }
