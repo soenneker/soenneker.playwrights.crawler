@@ -181,12 +181,12 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     {
         const string html = """
                             <html>
-                            <head><title>Acceptable Use | Leadping</title></head>
+                            <head><title>Acceptable Use | Example Site</title></head>
                             <body><script>self.__next_f.push([1, "CaptchaProvider"]);</script></body>
                             </html>
                             """;
 
-        _urlUtil.IsChallengePage("Acceptable Use | Leadping", html).Should().BeFalse();
+        _urlUtil.IsChallengePage("Acceptable Use | Example Site", html).Should().BeFalse();
     }
 
     [Test]
@@ -200,7 +200,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     {
         const string html = """
                             <html>
-                            <head><title>Contact | Leadping</title></head>
+                            <head><title>Contact | Example Site</title></head>
                             <body>
                               <main>Contact us</main>
                               <div class="cf-turnstile" data-sitekey="site-key"></div>
@@ -210,19 +210,19 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
                             """;
 
         _urlUtil.HasTurnstile(html).Should().BeTrue();
-        _urlUtil.IsChallengePage("Contact | Leadping", html).Should().BeFalse();
+        _urlUtil.IsChallengePage("Contact | Example Site", html).Should().BeFalse();
     }
 
     [Test]
     public void IsChallengePage_does_not_treat_turnstile_api_script_as_a_challenge()
     {
         const string html = """
-                            <html><head><title>Sign up | Leadping</title></head>
+                            <html><head><title>Sign up | Example Site</title></head>
                             <body><script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script></body></html>
                             """;
 
         _urlUtil.HasTurnstile(html).Should().BeTrue();
-        _urlUtil.IsChallengePage("Sign up | Leadping", html).Should().BeFalse();
+        _urlUtil.IsChallengePage("Sign up | Example Site", html).Should().BeFalse();
     }
 
     [Test]
