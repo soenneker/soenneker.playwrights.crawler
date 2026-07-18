@@ -88,7 +88,7 @@ PlaywrightCrawlResult result = await crawler.Crawl(new PlaywrightCrawlOptions
     UseStealth = true,
     ThrottleMode = PlaywrightCrawlThrottleMode.Automatic,
     NavigationTimeoutMs = 45_000,
-    WaitUntil = WaitUntilState.NetworkIdle,
+    WaitUntil = WaitUntilState.DOMContentLoaded,
     PostNavigationDelayMs = 0,
     ContinueOnPageError = true,
     StealthLaunchOptions = new StealthLaunchOptions
@@ -205,7 +205,7 @@ Saves:
 | `ExtraHttpHeaders` | Context-wide HTTP headers sent by every crawler page. |
 | `ThrottleMode` | Controls automatic pacing and adaptive throttling. Defaults to `Automatic`; use `Disabled` to bypass automatic pacing, slow mode, cooldown waiting, and implicit post-navigation jitter. |
 | `NavigationTimeoutMs` | Navigation timeout per page. |
-| `WaitUntil` | Playwright load state awaited during navigation. Defaults to `NetworkIdle`. |
+| `WaitUntil` | Playwright load state awaited during navigation. Defaults to `DOMContentLoaded`. |
 | `PostNavigationDelayMs` | Extra delay after navigation to allow late assets to settle. |
 | `ReadinessExpression` | Optional JavaScript boolean predicate polled after navigation. |
 | `ReadinessArgument` | Optional serializable argument supplied to the JavaScript readiness predicate. |

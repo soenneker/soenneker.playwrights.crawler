@@ -186,7 +186,7 @@ public sealed class PlaywrightCrawlOptions
     /// <summary>
     /// Load state to await during navigation.
     /// </summary>
-    public WaitUntilState WaitUntil { get; set; } = WaitUntilState.NetworkIdle;
+    public WaitUntilState WaitUntil { get; set; } = WaitUntilState.DOMContentLoaded;
 
     /// <summary>
     /// Additional delay to wait after navigation completes so late-loading assets can settle.

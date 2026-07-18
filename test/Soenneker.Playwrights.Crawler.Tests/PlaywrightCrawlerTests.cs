@@ -6,6 +6,7 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using Microsoft.Playwright;
 using Soenneker.Asyncs.Locks;
 using Soenneker.Tests.Attributes.Local;
 using Soenneker.Playwrights.Crawler.Abstract;
@@ -37,6 +38,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     public void Default()
     {
         new PlaywrightCrawlPolicy().MaximumThrottleWaitMs.Should().Be(120_000);
+        new PlaywrightCrawlOptions().WaitUntil.Should().Be(WaitUntilState.DOMContentLoaded);
     }
 
     [LocalOnly]
