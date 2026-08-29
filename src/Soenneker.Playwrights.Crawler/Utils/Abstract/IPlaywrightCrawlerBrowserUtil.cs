@@ -12,16 +12,16 @@ public interface IPlaywrightCrawlerBrowserUtil
     /// <summary>
     /// Creates browser.
     /// </summary>
-    /// <param name="playwright">The playwright.</param>
-    /// <param name="options">The options.</param>
-    /// <returns>A task containing the result of the operation.</returns>
+    /// <param name="playwright">Playwright for the create browser operation.</param>
+    /// <param name="options">Options to configure for the Playwright Crawler Browser.</param>
+    /// <returns>A task whose result is the requested browser.</returns>
     Task<IBrowser> CreateBrowser(IPlaywright playwright, PlaywrightCrawlOptions options);
 
     /// <summary>
     /// Creates browser context.
     /// </summary>
-    /// <param name="browser">The browser.</param>
-    /// <param name="options">The options.</param>
-    /// <returns>A task containing the result of the operation.</returns>
+    /// <param name="browser">Browser for the create browser context operation.</param>
+    /// <param name="options">Options to configure for the Playwright Crawler Browser.</param>
+    /// <returns>A task whose result is the requested browser Context.</returns>
     ValueTask<IBrowserContext> CreateBrowserContext(IBrowser browser, PlaywrightCrawlOptions options);
 }

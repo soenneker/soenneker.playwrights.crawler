@@ -13,84 +13,84 @@ namespace Soenneker.Playwrights.Crawler.Utils.Abstract;
 public interface IPlaywrightCrawlerUrlUtil
 {
     /// <summary>
-    /// Executes the validate and normalize root url operation.
+    /// Validates and Normalize Root URL for the Playwright Crawler URL.
     /// </summary>
-    /// <param name="url">The url.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="url">URL of the resource to target.</param>
+    /// <returns>The resulting URI.</returns>
     Uri ValidateAndNormalizeRootUrl(string url);
 
     /// <summary>
-    /// Attempts to execute normalize http url.
+    /// Attempts to normalize an HTTP or HTTPS URL into an absolute URI.
     /// </summary>
-    /// <param name="url">The url.</param>
-    /// <param name="uri">The uri.</param>
-    /// <returns>A value indicating whether the operation succeeded.</returns>
+    /// <param name="url">URL of the resource to target.</param>
+    /// <param name="uri">Receives the normalized absolute URI when parsing succeeds.</param>
+    /// <returns>true if the URL was valid and the normalized URI was assigned; otherwise, false.</returns>
     bool TryNormalizeHttpUrl(string url, out Uri? uri);
 
     /// <summary>
-    /// Executes the normalize url operation.
+    /// Normalizes URL.
     /// </summary>
-    /// <param name="uri">The uri.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="uri">Receives the normalized absolute URI when parsing succeeds.</param>
+    /// <returns>The resulting URI.</returns>
     Uri NormalizeUrl(Uri uri);
 
     /// <summary>
-    /// Executes the normalize page url operation.
+    /// Normalizes page URL.
     /// </summary>
-    /// <param name="uri">The uri.</param>
-    /// <param name="ignoreQueryString">The ignore query string.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="uri">Receives the normalized absolute URI when parsing succeeds.</param>
+    /// <param name="ignoreQueryString">Whether ignore query string.</param>
+    /// <returns>The resulting URI.</returns>
     Uri NormalizePageUrl(Uri uri, bool ignoreQueryString);
 
     /// <summary>
-    /// Executes the uris share host operation.
+    /// Determines whether two URIs identify the same host.
     /// </summary>
-    /// <param name="first">The first.</param>
-    /// <param name="second">The second.</param>
-    /// <returns>A value indicating whether the operation succeeded.</returns>
+    /// <param name="first">First URI to compare.</param>
+    /// <param name="second">Second URI to compare.</param>
+    /// <returns>true if both URIs have the same host; otherwise, false.</returns>
     bool UrisShareHost(Uri first, Uri second);
 
     /// <summary>
     /// Builds relative path.
     /// </summary>
-    /// <param name="rootUri">The root uri.</param>
-    /// <param name="resourceUri">The resource uri.</param>
-    /// <param name="isHtmlDocument">The is html document.</param>
-    /// <param name="contentType">The content type.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="rootUri">Root URI that defines the crawl boundary.</param>
+    /// <param name="resourceUri">Discovered resource URI to evaluate.</param>
+    /// <param name="isHtmlDocument">Whether the resource is the rendered HTML document.</param>
+    /// <param name="contentType">Media type describing the supplied content.</param>
+    /// <returns>The text produced by build Relative Path.</returns>
     string BuildRelativePath(Uri rootUri, Uri resourceUri, bool isHtmlDocument, string? contentType);
 
     /// <summary>
-    /// Executes the should queue page operation.
+    /// Determines whether a discovered page URI is eligible to enter the crawl queue.
     /// </summary>
-    /// <param name="rootUri">The root uri.</param>
-    /// <param name="candidate">The candidate.</param>
-    /// <param name="options">The options.</param>
-    /// <returns>A value indicating whether the operation succeeded.</returns>
+    /// <param name="rootUri">Root URI that defines the crawl boundary.</param>
+    /// <param name="candidate">Discovered page URI to evaluate.</param>
+    /// <param name="options">Options to configure for the Playwright Crawler URL.</param>
+    /// <returns>true if the candidate may be queued; otherwise, false.</returns>
     bool ShouldQueuePage(Uri rootUri, Uri candidate, PlaywrightCrawlOptions options);
 
     /// <summary>
-    /// Executes the should save resource operation.
+    /// Determines whether a discovered resource should be persisted under the crawl options.
     /// </summary>
-    /// <param name="rootUri">The root uri.</param>
-    /// <param name="resourceUri">The resource uri.</param>
-    /// <param name="isHtmlDocument">The is html document.</param>
-    /// <param name="options">The options.</param>
-    /// <returns>A value indicating whether the operation succeeded.</returns>
+    /// <param name="rootUri">Root URI that defines the crawl boundary.</param>
+    /// <param name="resourceUri">Discovered resource URI to evaluate.</param>
+    /// <param name="isHtmlDocument">Whether the resource is the rendered HTML document.</param>
+    /// <param name="options">Options to configure for the Playwright Crawler URL.</param>
+    /// <returns>true if the resource should be saved; otherwise, false.</returns>
     bool ShouldSaveResource(Uri rootUri, Uri resourceUri, bool isHtmlDocument, PlaywrightCrawlOptions options);
 
     /// <summary>
     /// Gets page links.
     /// </summary>
-    /// <param name="page">The page.</param>
-    /// <returns>A task containing the result of the operation.</returns>
+    /// <param name="page">Browser page to inspect or control.</param>
+    /// <returns>A task whose result is the collection returned by get Page Links.</returns>
     Task<IReadOnlyList<string>> GetPageLinks(IPage page);
 
     /// <summary>
     /// Gets page resource urls.
     /// </summary>
-    /// <param name="page">The page.</param>
-    /// <returns>A task containing the result of the operation.</returns>
+    /// <param name="page">Browser page to inspect or control.</param>
+    /// <returns>A task whose result is the collection returned by get Page Resource Urls.</returns>
     Task<IReadOnlyList<string>> GetPageResourceUrls(IPage page);
 
     /// <summary>
@@ -101,25 +101,25 @@ public interface IPlaywrightCrawlerUrlUtil
     bool HasTurnstile(string html);
 
     /// <summary>
-    /// Executes the is challenge page operation.
+    /// Determines whether the Playwright Crawler URL challenge Page.
     /// </summary>
-    /// <param name="title">The title.</param>
-    /// <param name="html">The html.</param>
-    /// <returns>A value indicating whether the operation succeeded.</returns>
+    /// <param name="title">Page title, when available.</param>
+    /// <param name="html">Rendered page HTML to inspect.</param>
+    /// <returns>true if challenge-page markers were detected; otherwise, false.</returns>
     bool IsChallengePage(string? title, string html);
 
     /// <summary>
-    /// Executes the resolve ip key operation.
+    /// Resolves ip Key.
     /// </summary>
-    /// <param name="uri">The uri.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task containing the result of the operation.</returns>
+    /// <param name="uri">Receives the normalized absolute URI when parsing succeeds.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task whose result is the text returned by resolve Ip Key.</returns>
     Task<string> ResolveIpKey(Uri uri, CancellationToken cancellationToken);
 
     /// <summary>
     /// Gets domain key.
     /// </summary>
-    /// <param name="uri">The uri.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="uri">Receives the normalized absolute URI when parsing succeeds.</param>
+    /// <returns>The requested text.</returns>
     string GetDomainKey(Uri uri);
 }

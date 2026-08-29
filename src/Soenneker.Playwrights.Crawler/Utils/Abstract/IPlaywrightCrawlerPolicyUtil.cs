@@ -14,131 +14,131 @@ namespace Soenneker.Playwrights.Crawler.Utils.Abstract;
 public interface IPlaywrightCrawlerPolicyUtil
 {
     /// <summary>
-    /// Executes the navigate with policy operation.
+    /// Navigates with Policy.
     /// </summary>
-    /// <param name="page">The page.</param>
-    /// <param name="targetUri">The target uri.</param>
-    /// <param name="options">The options.</param>
-    /// <param name="domainState">The domain state.</param>
-    /// <param name="globalSemaphore">The global semaphore.</param>
-    /// <param name="ipSemaphore">The ip semaphore.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task containing the result of the operation.</returns>
+    /// <param name="page">Browser page to inspect or control.</param>
+    /// <param name="targetUri">Target URI for the navigate with policy operation.</param>
+    /// <param name="options">Options to configure for the Playwright Crawler Policy.</param>
+    /// <param name="domainState">Per-domain crawl state used for throttling and concurrency decisions.</param>
+    /// <param name="globalSemaphore">Global Semaphore for the navigate with policy operation.</param>
+    /// <param name="ipSemaphore">Ip Semaphore for the navigate with policy operation.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task whose result is the requested response.</returns>
     ValueTask<IResponse?> NavigateWithPolicy(IPage page, Uri targetUri, PlaywrightCrawlOptions options, CrawlerDomainState domainState,
         SemaphoreSlim globalSemaphore, SemaphoreSlim ipSemaphore, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Executes the ensure domain request allowed operation.
+    /// Ensures domain Request Allowed.
     /// </summary>
-    /// <param name="domainState">The domain state.</param>
-    /// <param name="policy">The policy.</param>
-    /// <param name="throttleMode">The throttle mode.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <param name="domainState">Per-domain crawl state used for throttling and concurrency decisions.</param>
+    /// <param name="policy">Policy that controls the operation.</param>
+    /// <param name="throttleMode">Throttling policy applied to requests for the domain.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the ensure domain request allowed operation is complete.</returns>
     ValueTask EnsureDomainRequestAllowed(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Executes the acquire domain concurrency operation.
+    /// Acquires domain Concurrency.
     /// </summary>
-    /// <param name="domainState">The domain state.</param>
-    /// <param name="policy">The policy.</param>
-    /// <param name="throttleMode">The throttle mode.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <param name="domainState">Per-domain crawl state used for throttling and concurrency decisions.</param>
+    /// <param name="policy">Policy that controls the operation.</param>
+    /// <param name="throttleMode">Throttling policy applied to requests for the domain.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the acquire domain concurrency operation is complete.</returns>
     ValueTask AcquireDomainConcurrency(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Executes the release domain concurrency operation.
+    /// Releases domain Concurrency.
     /// </summary>
-    /// <param name="domainState">The domain state.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <param name="domainState">Per-domain crawl state used for throttling and concurrency decisions.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the release domain concurrency operation is complete.</returns>
     ValueTask ReleaseDomainConcurrency(CrawlerDomainState domainState, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Executes the record navigation outcome operation.
+    /// Records navigation Outcome.
     /// </summary>
-    /// <param name="domainState">The domain state.</param>
-    /// <param name="policy">The policy.</param>
-    /// <param name="throttleMode">The throttle mode.</param>
-    /// <param name="statusCode">The status code.</param>
-    /// <param name="elapsedMs">The elapsed ms.</param>
-    /// <param name="success">The success.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <param name="domainState">Per-domain crawl state used for throttling and concurrency decisions.</param>
+    /// <param name="policy">Policy that controls the operation.</param>
+    /// <param name="throttleMode">Throttling policy applied to requests for the domain.</param>
+    /// <param name="statusCode">HTTP status code associated with the result.</param>
+    /// <param name="elapsedMs">Elapsed Ms for the record navigation outcome operation.</param>
+    /// <param name="success">Whether success.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the record navigation outcome operation is complete.</returns>
     ValueTask RecordNavigationOutcome(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode, int? statusCode,
         long elapsedMs, bool success, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Executes the handle blocking signal operation.
+    /// Handles the blocking signal callback.
     /// </summary>
-    /// <param name="logger">The logger.</param>
-    /// <param name="domainState">The domain state.</param>
-    /// <param name="policy">The policy.</param>
-    /// <param name="throttleMode">The throttle mode.</param>
-    /// <param name="statusCode">The status code.</param>
-    /// <param name="reason">The reason.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <param name="logger">Logger for the handle blocking signal operation.</param>
+    /// <param name="domainState">Per-domain crawl state used for throttling and concurrency decisions.</param>
+    /// <param name="policy">Policy that controls the operation.</param>
+    /// <param name="throttleMode">Throttling policy applied to requests for the domain.</param>
+    /// <param name="statusCode">HTTP status code associated with the result.</param>
+    /// <param name="reason">Reason for the handle blocking signal operation.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the handle blocking signal operation is complete.</returns>
     ValueTask HandleBlockingSignal(ILogger logger, CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
         int statusCode, string reason, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Executes the record duplicate page operation.
+    /// Records duplicate Page.
     /// </summary>
-    /// <param name="domainState">The domain state.</param>
-    /// <param name="policy">The policy.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <param name="domainState">Per-domain crawl state used for throttling and concurrency decisions.</param>
+    /// <param name="policy">Policy that controls the operation.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the record duplicate page operation is complete.</returns>
     ValueTask RecordDuplicatePage(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Executes the mark page completed operation.
+    /// Marks page Completed.
     /// </summary>
-    /// <param name="domainState">The domain state.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <param name="domainState">Per-domain crawl state used for throttling and concurrency decisions.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the mark page completed operation is complete.</returns>
     ValueTask MarkPageCompleted(CrawlerDomainState domainState, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Executes the refresh domain mode operation.
+    /// Refreshes domain Mode.
     /// </summary>
-    /// <param name="domainState">The domain state.</param>
-    /// <param name="now">The now.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <param name="domainState">Per-domain crawl state used for throttling and concurrency decisions.</param>
+    /// <param name="now">Now for the refresh domain mode operation.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the refresh domain mode operation is complete.</returns>
     ValueTask RefreshDomainMode(CrawlerDomainState domainState, DateTimeOffset now, CancellationToken cancellationToken);
 
     /// <summary>
     /// Gets post navigation delay ms.
     /// </summary>
-    /// <param name="options">The options.</param>
-    /// <param name="policy">The policy.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="options">Options to configure for the Playwright Crawler Policy.</param>
+    /// <param name="policy">Policy that controls the operation.</param>
+    /// <returns>The requested value.</returns>
     int GetPostNavigationDelayMs(PlaywrightCrawlOptions options, PlaywrightCrawlPolicy policy);
 
     /// <summary>
     /// Gets worker count.
     /// </summary>
-    /// <param name="options">The options.</param>
-    /// <param name="policy">The policy.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="options">Options to configure for the Playwright Crawler Policy.</param>
+    /// <param name="policy">Policy that controls the operation.</param>
+    /// <returns>The requested value.</returns>
     int GetWorkerCount(PlaywrightCrawlOptions options, PlaywrightCrawlPolicy policy);
 
     /// <summary>
-    /// Executes the should stop operation.
+    /// Determines whether the crawl should stop because a configured limit has been reached.
     /// </summary>
-    /// <param name="options">The options.</param>
-    /// <param name="result">The result.</param>
-    /// <param name="stopwatch">The stopwatch.</param>
-    /// <returns>A value indicating whether the operation succeeded.</returns>
+    /// <param name="options">Options to configure for the Playwright Crawler Policy.</param>
+    /// <param name="result">Result accumulated by the operation.</param>
+    /// <param name="stopwatch">Stopwatch for the should stop operation.</param>
+    /// <returns>true when crawling should stop; otherwise, false.</returns>
     bool ShouldStop(PlaywrightCrawlOptions options, PlaywrightCrawlResult result, System.Diagnostics.Stopwatch stopwatch);
 
     /// <summary>
-    /// Executes the validate policy operation.
+    /// Validates policy for the Playwright Crawler Policy.
     /// </summary>
-    /// <param name="policy">The policy.</param>
+    /// <param name="policy">Policy that controls the operation.</param>
     void ValidatePolicy(PlaywrightCrawlPolicy policy);
 }
