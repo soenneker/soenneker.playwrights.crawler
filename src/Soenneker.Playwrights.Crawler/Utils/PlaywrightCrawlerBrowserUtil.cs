@@ -26,7 +26,6 @@ internal sealed class PlaywrightCrawlerBrowserUtil : IPlaywrightCrawlerBrowserUt
     {
         var contextOptions = new BrowserNewContextOptions
         {
-            ExtraHTTPHeaders = options.ExtraHttpHeaders.Count > 0 ? options.ExtraHttpHeaders : null,
             Proxy = options.StealthContextOptions?.Proxy
         };
 

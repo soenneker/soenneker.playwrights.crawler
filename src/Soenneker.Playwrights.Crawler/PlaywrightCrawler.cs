@@ -20,7 +20,6 @@ using Soenneker.Playwrights.Crawler.Enums;
 
 namespace Soenneker.Playwrights.Crawler;
 
-/// <inheritdoc cref="IPlaywrightCrawler"/>
 public sealed class PlaywrightCrawler : IPlaywrightCrawler
 {
     private readonly ILogger<PlaywrightCrawler> _logger;
@@ -61,6 +60,9 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
                 throw new ArgumentException("SaveDirectory is required when SaveToDisk is true.", nameof(options));
 
             saveDirectory = Path.GetFullPath(options.SaveDirectory);
+
+            if (options.ClearSaveDirectory && IsFileSystemRoot(saveDirectory))
+                throw new InvalidOperationException("ClearSaveDirectory cannot target a filesystem root.");
         }
 
         if (!options.SaveToDisk && options.Mode == PlaywrightCrawlMode.Full)
@@ -162,6 +164,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
         await using IBrowserContext context = await _browserUtil.CreateBrowserContext(browser, options).NoSync();
 
+        await ConfigureExtraHeaders(context, startingUris, options).NoSync();
+
         await using var resultLock = new AsyncLock();
 
         int workerCount = _policyUtil.GetWorkerCount(options, policy);
@@ -186,6 +190,36 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
             result.RootUrl, result.PagesVisited, result.HtmlFilesSaved, result.AssetFilesSaved, result.BytesWritten);
 
         return result;
+    }
+
+    private async Task ConfigureExtraHeaders(IBrowserContext context, IReadOnlyList<Uri> startingUris, PlaywrightCrawlOptions options)
+    {
+        if (options.ExtraHttpHeaders.Count == 0)
+            return;
+
+        await context.RouteAsync("**/*", async route =>
+        {
+            if (!Uri.TryCreate(route.Request.Url, UriKind.Absolute, out Uri? requestUri) ||
+                !startingUris.Any(startingUri => _urlUtil.UrisShareHost(startingUri, requestUri)))
+            {
+                await route.ContinueAsync().NoSync();
+                return;
+            }
+
+            var headers = new Dictionary<string, string>(route.Request.Headers, StringComparer.OrdinalIgnoreCase);
+
+            foreach ((string name, string value) in options.ExtraHttpHeaders)
+                headers[name] = value;
+
+            await route.ContinueAsync(new RouteContinueOptions {Headers = headers}).NoSync();
+        }).NoSync();
+    }
+
+    private static bool IsFileSystemRoot(string path)
+    {
+        string fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string? root = Path.GetPathRoot(path)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return root != null && string.Equals(fullPath, root, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task RunCrawlerWorker(IBrowserContext context, Uri rootUri, PlaywrightCrawlOptions options,

@@ -41,7 +41,31 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
         new PlaywrightCrawlOptions().WaitUntil.Should().Be(WaitUntilState.DOMContentLoaded);
     }
 
+    [Test]
+    public async ValueTask Crawl_rejects_clearing_a_filesystem_root()
+    {
+        string root = Path.GetPathRoot(Path.GetTempPath())!;
+        bool rejected = false;
+
+        try
+        {
+            await _util.Crawl(new PlaywrightCrawlOptions
+            {
+                Url = "https://example.com",
+                SaveDirectory = root,
+                ClearSaveDirectory = true
+            });
+        }
+        catch (InvalidOperationException)
+        {
+            rejected = true;
+        }
+
+        rejected.Should().BeTrue();
+    }
+
     [LocalOnly]
+    [Test]
     public void GetPostNavigationDelayMs_returns_0_when_throttling_is_disabled_and_no_explicit_delay_is_set()
     {
         var options = new PlaywrightCrawlOptions
@@ -57,6 +81,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [LocalOnly]
+    [Test]
     public async Task EnsureDomainRequestAllowed_does_not_wait_when_throttling_is_disabled()
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)

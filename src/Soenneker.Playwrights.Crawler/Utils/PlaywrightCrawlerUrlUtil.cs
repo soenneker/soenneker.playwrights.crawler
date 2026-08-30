@@ -446,6 +446,9 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
         if (value.IsNullOrWhiteSpace())
             return "_";
 
+        if (value is "." or "..")
+            return "_";
+
         char[] invalid = Path.GetInvalidFileNameChars();
         var builder = new StringBuilder(value.Length);
 

@@ -1,5 +1,6 @@
 [![](https://img.shields.io/nuget/v/soenneker.playwrights.crawler.svg?style=for-the-badge)](https://www.nuget.org/packages/soenneker.playwrights.crawler/)
 [![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.playwrights.crawler/publish-package.yml?style=for-the-badge)](https://github.com/soenneker/soenneker.playwrights.crawler/actions/workflows/publish-package.yml)
+[![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.playwrights.crawler/codeql.yml?label=codeql&style=for-the-badge)](https://github.com/soenneker/soenneker.playwrights.crawler/actions/workflows/codeql.yml)
 [![](https://img.shields.io/nuget/dt/soenneker.playwrights.crawler.svg?style=for-the-badge)](https://www.nuget.org/packages/soenneker.playwrights.crawler/)
 
 # ![](https://user-images.githubusercontent.com/4441470/224455560-91ed3ee7-f510-4041-a8d2-3fc093025112.png) Soenneker.Playwrights.Crawler
@@ -202,7 +203,7 @@ Saves:
 | `OverwriteExistingFiles` | Controls whether existing files can be replaced. |
 | `Headless` | Runs Chromium headlessly when `true`. |
 | `UseStealth` | Enables the Soenneker stealth Playwright extensions. |
-| `ExtraHttpHeaders` | Context-wide HTTP headers sent by every crawler page. |
+| `ExtraHttpHeaders` | HTTP headers sent only to origins represented by an explicit starting URL; cross-origin subresources do not receive them. |
 | `ThrottleMode` | Controls automatic pacing and adaptive throttling. Defaults to `Automatic`; use `Disabled` to bypass automatic pacing, slow mode, cooldown waiting, and implicit post-navigation jitter. |
 | `NavigationTimeoutMs` | Navigation timeout per page. |
 | `WaitUntil` | Playwright load state awaited during navigation. Defaults to `DOMContentLoaded`. |
@@ -244,6 +245,9 @@ Examples:
 ## Behavior Notes
 
 - Playwright browser installation is ensured automatically before the crawl starts.
+- `ClearSaveDirectory` deletes the resolved output directory before crawling and refuses filesystem roots. Saved paths are constrained beneath that directory.
+- Treat crawl URLs as network access: crawling an untrusted URL can reach addresses available to the host, including internal services. Restrict caller-supplied URLs before invoking the crawler.
+- Extra headers are limited to explicitly supplied starting origins so embedded third-party resources do not receive credentials.
 - Multiple starting URLs use one Playwright instance, browser, and browser context.
 - `PageCompletedHandler` callbacks can run concurrently when the crawl uses multiple workers.
 - Adaptive throttling uses main-document HTTP timing rather than total browser readiness, requires multiple samples before latency can trigger slow mode, and fails a page instead of waiting longer than `Policy.MaximumThrottleWaitMs`.

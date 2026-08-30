@@ -12,8 +12,8 @@ public interface IPlaywrightCrawler
     /// <summary>
     /// Crawls or captures the configured URLs and optionally writes mirrored output to disk.
     /// </summary>
-    /// <param name="options">Options to configure for the Playwright Crawler.</param>
+    /// <param name="options">The starting URLs, capture behavior, limits, and output settings.</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
-    /// <returns>A task whose result is the requested playwright Crawl Result.</returns>
+    /// <returns>The crawl summary, captured-page details, saved-file details, and page errors.</returns>
     ValueTask<PlaywrightCrawlResult> Crawl(PlaywrightCrawlOptions options, CancellationToken cancellationToken = default);
 }

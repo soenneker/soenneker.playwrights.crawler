@@ -242,7 +242,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
 
         string relativePath =
             _urlUtil.BuildRelativePath(rootUri, documentUri, isHtmlDocument: true, contentType: "text/html");
-        string fullPath = Path.Combine(result.SaveDirectory, relativePath);
+        string fullPath = ResolveOutputPath(result.SaveDirectory, relativePath);
         byte[] rewrittenBytes = System.Text.Encoding.UTF8.GetBytes(rewrittenHtml);
         long sizeDelta = rewrittenBytes.LongLength - System.Text.Encoding.UTF8.GetByteCount(originalHtml);
 
@@ -276,7 +276,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         string? contentType, PlaywrightCrawlOptions options, PlaywrightCrawlResult result,
         ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, CancellationToken cancellationToken)
     {
-        string fullPath = Path.Combine(result.SaveDirectory, relativePath);
+        string fullPath = ResolveOutputPath(result.SaveDirectory, relativePath);
 
         if (!savedUrls.TryAdd(url, 0))
         {
@@ -366,7 +366,7 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         ConcurrentDictionary<string, byte> savedUrls, AsyncLock resultLock, IAPIRequestContext apiRequestContext,
         IReadOnlyDictionary<string, string> requestHeaders, CancellationToken cancellationToken)
     {
-        string fullPath = Path.Combine(result.SaveDirectory, relativePath);
+        string fullPath = ResolveOutputPath(result.SaveDirectory, relativePath);
 
         if (!savedUrls.TryAdd(url, 0))
         {
@@ -712,6 +712,18 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         string relativePath = Path.GetRelativePath(baseDirectory, targetRelativePath);
 
         return relativePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+    }
+
+    private static string ResolveOutputPath(string saveDirectory, string relativePath)
+    {
+        string root = Path.GetFullPath(saveDirectory);
+        string fullPath = Path.GetFullPath(Path.Combine(root, relativePath));
+        string rootPrefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
+        if (!fullPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The resolved crawler output path is outside the save directory.");
+
+        return fullPath;
     }
 
     private static string? TryGetHeaderValue(IReadOnlyDictionary<string, string> headers, string key)

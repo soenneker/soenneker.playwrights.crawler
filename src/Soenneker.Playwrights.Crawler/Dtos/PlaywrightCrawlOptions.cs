@@ -152,7 +152,8 @@ public sealed class PlaywrightCrawlOptions
     public bool UseStealth { get; set; } = true;
 
     /// <summary>
-    /// Additional HTTP headers sent by every page in the shared browser context.
+    /// Additional HTTP headers sent only to origins represented by an explicit starting URL.
+    /// Cross-origin subresources do not receive these headers.
     /// </summary>
     public Dictionary<string, string> ExtraHttpHeaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 

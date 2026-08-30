@@ -11,7 +11,7 @@ using Soenneker.Utils.File.Registrars;
 namespace Soenneker.Playwrights.Crawler.Registrars;
 
 /// <summary>
-/// A configurable Playwright crawler with rich stealth and control options.
+/// Registers the Playwright crawler and its browser, policy, URL, and storage services.
 /// </summary>
 public static class PlaywrightCrawlerRegistrar
 {

@@ -350,6 +350,9 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
         if (options.PostNavigationDelayMs > 0)
             return options.PostNavigationDelayMs;
 
+        if (options.ThrottleMode == PlaywrightCrawlThrottleMode.Disabled)
+            return 0;
+
         return RandomUtil.Next(policy.PostNavigationJitterMinMs, policy.PostNavigationJitterMaxMs + 1);
     }
 
