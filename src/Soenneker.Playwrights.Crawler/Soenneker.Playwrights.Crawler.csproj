@@ -41,8 +41,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Html.Formatter" Version="4.0.130" />
-        <PackageReference Include="Soenneker.Playwrights.Installation" Version="4.0.144" />
-        <PackageReference Include="Soenneker.Playwrights.Extensions.Stealth" Version="4.0.129" />
+        <PackageReference Include="Soenneker.Html.Formatter" Version="4.0.131" />
+        <PackageReference Include="Soenneker.Playwrights.Installation" Version="4.0.145" />
+        <PackageReference Include="Soenneker.Playwrights.Extensions.Stealth" Version="4.0.130" />
     </ItemGroup>
 </Project>
