@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Soenneker.Utils.PooledStringBuilders;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -450,7 +451,7 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
             return "_";
 
         char[] invalid = Path.GetInvalidFileNameChars();
-        var builder = new StringBuilder(value.Length);
+        using var builder = new PooledStringBuilder(value.Length);
 
         foreach (char c in value)
         {

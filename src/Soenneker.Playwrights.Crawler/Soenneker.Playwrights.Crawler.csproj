@@ -44,5 +44,6 @@
         <PackageReference Include="Soenneker.Html.Formatter" Version="4.0.134" />
         <PackageReference Include="Soenneker.Playwrights.Installation" Version="4.0.148" />
         <PackageReference Include="Soenneker.Playwrights.Extensions.Stealth" Version="4.0.131" />
+        <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="4.0.29" />
     </ItemGroup>
 </Project>
