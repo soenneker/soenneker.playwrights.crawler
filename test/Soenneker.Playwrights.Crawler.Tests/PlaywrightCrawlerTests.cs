@@ -42,7 +42,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [Test]
-    public async ValueTask Crawl_rejects_clearing_a_filesystem_root()
+    public async ValueTask Crawl_rejects_clearing_a_filesystem_root(CancellationToken cancellationToken)
     {
         string root = Path.GetPathRoot(Path.GetTempPath())!;
         bool rejected = false;
@@ -54,7 +54,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
                 Url = "https://example.com",
                 SaveDirectory = root,
                 ClearSaveDirectory = true
-            });
+            }, cancellationToken);
         }
         catch (InvalidOperationException)
         {
@@ -82,7 +82,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
 
     [LocalOnly]
     [Test]
-    public async Task EnsureDomainRequestAllowed_does_not_wait_when_throttling_is_disabled()
+    public async Task EnsureDomainRequestAllowed_does_not_wait_when_throttling_is_disabled(CancellationToken cancellationToken)
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)
         {
@@ -95,7 +95,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
         var stopwatch = Stopwatch.StartNew();
 
         await _policyUtil.EnsureDomainRequestAllowed(domainState, new PlaywrightCrawlPolicy(),
-            PlaywrightCrawlThrottleMode.Disabled, System.Threading.CancellationToken.None);
+            PlaywrightCrawlThrottleMode.Disabled, cancellationToken);
         stopwatch.Stop();
 
         stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromMilliseconds(250));
@@ -103,7 +103,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [Test]
-    public async Task EnsureDomainRequestAllowed_fails_instead_of_waiting_for_an_extreme_cooldown()
+    public async Task EnsureDomainRequestAllowed_fails_instead_of_waiting_for_an_extreme_cooldown(CancellationToken cancellationToken)
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)
         {
@@ -116,13 +116,13 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
         };
 
         Func<Task> action = async () => await _policyUtil.EnsureDomainRequestAllowed(domainState, policy,
-            PlaywrightCrawlThrottleMode.Automatic, CancellationToken.None);
+            PlaywrightCrawlThrottleMode.Automatic, cancellationToken);
 
         await action.Should().ThrowAsync<TimeoutException>().WithMessage("*exceeds the configured maximum*");
     }
 
     [Test]
-    public async Task AcquireDomainConcurrency_fails_instead_of_polling_for_an_extreme_cooldown()
+    public async Task AcquireDomainConcurrency_fails_instead_of_polling_for_an_extreme_cooldown(CancellationToken cancellationToken)
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)
         {
@@ -135,13 +135,13 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
         };
 
         Func<Task> action = async () => await _policyUtil.AcquireDomainConcurrency(domainState, policy,
-            PlaywrightCrawlThrottleMode.Automatic, CancellationToken.None);
+            PlaywrightCrawlThrottleMode.Automatic, cancellationToken);
 
         await action.Should().ThrowAsync<TimeoutException>().WithMessage("*exceeds the configured maximum*");
     }
 
     [Test]
-    public async Task Response_time_slow_mode_requires_the_configured_minimum_sample_count()
+    public async Task Response_time_slow_mode_requires_the_configured_minimum_sample_count(CancellationToken cancellationToken)
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1);
         var policy = new PlaywrightCrawlPolicy
@@ -151,14 +151,14 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
         };
 
         await _policyUtil.RecordNavigationOutcome(domainState, policy, PlaywrightCrawlThrottleMode.Automatic, 200, 20_000, true,
-            CancellationToken.None);
+            cancellationToken);
         await _policyUtil.RecordNavigationOutcome(domainState, policy, PlaywrightCrawlThrottleMode.Automatic, 200, 20_000, true,
-            CancellationToken.None);
+            cancellationToken);
 
         domainState.Mode.Should().Be(CrawlerDomainMode.Normal);
 
         await _policyUtil.RecordNavigationOutcome(domainState, policy, PlaywrightCrawlThrottleMode.Automatic, 200, 20_000, true,
-            CancellationToken.None);
+            cancellationToken);
 
         domainState.Mode.Should().Be(CrawlerDomainMode.Slow);
     }
@@ -302,7 +302,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [Test]
-    public async ValueTask SaveRenderedDocument_rewrites_same_origin_absolute_urls_to_root_relative()
+    public async ValueTask SaveRenderedDocument_rewrites_same_origin_absolute_urls_to_root_relative(CancellationToken cancellationToken)
     {
         Uri rootUri = _urlUtil.ValidateAndNormalizeRootUrl("https://firstfamilyinsurance.com");
         string saveDirectory = Path.Combine(Path.GetTempPath(), "soenneker-playwright-crawler-tests",
@@ -332,10 +332,10 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
 
         try
         {
-            await _storage.CreateDirectory(saveDirectory, CancellationToken.None);
+            await _storage.CreateDirectory(saveDirectory, cancellationToken);
             await _storage.SaveRenderedDocument(rootUri, rootUri, html, options, result,
                 new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase), resultLock,
-                CancellationToken.None);
+                cancellationToken);
 
             string savedHtml = await File.ReadAllTextAsync(Path.Combine(saveDirectory, "index.html"));
 
@@ -356,7 +356,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     [Skip("Manual")]
     [LocalOnly]
     [Test]
-    public async ValueTask Test()
+    public async ValueTask Test(CancellationToken cancellationToken)
     {
         var options = new PlaywrightCrawlOptions
         {
@@ -370,6 +370,6 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
             MaxDepth = 30
         };
 
-        await _util.Crawl(options);
+        await _util.Crawl(options, cancellationToken: cancellationToken);
     }
 }
