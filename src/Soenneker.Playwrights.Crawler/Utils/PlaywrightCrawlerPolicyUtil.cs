@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 using Soenneker.Asyncs.Locks;
+using Soenneker.Asyncs.Semaphores;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
 using Soenneker.Playwrights.Crawler.Dtos;
@@ -27,7 +28,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
     }
 
     public async ValueTask<IResponse?> NavigateWithPolicy(IPage page, Uri targetUri, PlaywrightCrawlOptions options, CrawlerDomainState domainState,
-        SemaphoreSlim globalSemaphore, SemaphoreSlim ipSemaphore, CancellationToken cancellationToken)
+        AsyncSemaphore globalSemaphore, AsyncSemaphore ipSemaphore, CancellationToken cancellationToken)
     {
         PlaywrightCrawlPolicy policy = options.Policy ?? new PlaywrightCrawlPolicy();
 
@@ -43,17 +44,15 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
             await EnsureDomainRequestAllowed(domainState, policy, options.ThrottleMode, cancellationToken).NoSync();
 
-            var globalAcquired = false;
             var domainAcquired = false;
-            var ipAcquired = false;
+            SemaphoreLease globalLease = default;
+            SemaphoreLease ipLease = default;
 
             try
             {
-                await globalSemaphore.WaitAsync(cancellationToken).NoSync();
-                globalAcquired = true;
+                globalLease = await globalSemaphore.Acquire(cancellationToken).NoSync();
 
-                await ipSemaphore.WaitAsync(cancellationToken).NoSync();
-                ipAcquired = true;
+                ipLease = await ipSemaphore.Acquire(cancellationToken).NoSync();
 
                 await AcquireDomainConcurrency(domainState, policy, options.ThrottleMode, cancellationToken).NoSync();
                 domainAcquired = true;
@@ -104,14 +103,12 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
             }
             finally
             {
-                if (ipAcquired)
-                    ipSemaphore.Release();
+                ipLease.Dispose();
 
                 if (domainAcquired)
                     await ReleaseDomainConcurrency(domainState, cancellationToken).NoSync();
 
-                if (globalAcquired)
-                    globalSemaphore.Release();
+                globalLease.Dispose();
             }
         }
     }
@@ -182,7 +179,7 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
     public async ValueTask AcquireDomainConcurrency(CrawlerDomainState domainState, PlaywrightCrawlPolicy policy, PlaywrightCrawlThrottleMode throttleMode,
         CancellationToken cancellationToken)
     {
-        await domainState.ConcurrencySemaphore.WaitAsync(cancellationToken).NoSync();
+        _ = await domainState.ConcurrencySemaphore.Acquire(cancellationToken).NoSync();
 
         try
         {

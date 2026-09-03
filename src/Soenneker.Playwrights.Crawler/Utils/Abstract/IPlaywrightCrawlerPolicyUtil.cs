@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
+using Soenneker.Asyncs.Semaphores;
 using Soenneker.Playwrights.Crawler.Dtos;
 using Soenneker.Playwrights.Crawler.Enums;
 
@@ -25,7 +26,7 @@ public interface IPlaywrightCrawlerPolicyUtil
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
     /// <returns>A task whose result is the requested response.</returns>
     ValueTask<IResponse?> NavigateWithPolicy(IPage page, Uri targetUri, PlaywrightCrawlOptions options, CrawlerDomainState domainState,
-        SemaphoreSlim globalSemaphore, SemaphoreSlim ipSemaphore, CancellationToken cancellationToken);
+        AsyncSemaphore globalSemaphore, AsyncSemaphore ipSemaphore, CancellationToken cancellationToken);
 
     /// <summary>
     /// Ensures domain Request Allowed.

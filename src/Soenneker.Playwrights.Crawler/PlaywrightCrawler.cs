@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 using Soenneker.Asyncs.Locks;
+using Soenneker.Asyncs.Semaphores;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
 using Soenneker.Playwrights.Installation.Abstract;
@@ -135,9 +136,9 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         }
 
         var savedUrls = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
-        var globalSemaphore = new SemaphoreSlim(policy.GlobalMaxConcurrency, policy.GlobalMaxConcurrency);
+        var globalSemaphore = new AsyncSemaphore(policy.GlobalMaxConcurrency);
         var domainStates = new ConcurrentDictionary<string, CrawlerDomainState>(StringComparer.OrdinalIgnoreCase);
-        var ipSemaphores = new ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
+        var ipSemaphores = new ConcurrentDictionary<string, AsyncSemaphore>(StringComparer.OrdinalIgnoreCase);
 
         var frontier = Channel.CreateUnbounded<CrawlTarget>(new UnboundedChannelOptions
         {
@@ -226,8 +227,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         PlaywrightCrawlPolicy policy, PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> queuedPages,
         ConcurrentDictionary<string, byte> visitedPages, ConcurrentDictionary<string, byte> savedUrls,
         Channel<CrawlTarget> frontier, PendingCounter pendingCounter, Stopwatch stopwatch,
-        SemaphoreSlim globalSemaphore, ConcurrentDictionary<string, CrawlerDomainState> domainStates,
-        ConcurrentDictionary<string, SemaphoreSlim> ipSemaphores, AsyncLock resultLock,
+        AsyncSemaphore globalSemaphore, ConcurrentDictionary<string, CrawlerDomainState> domainStates,
+        ConcurrentDictionary<string, AsyncSemaphore> ipSemaphores, AsyncLock resultLock,
         CancellationToken cancellationToken)
     {
         await foreach (CrawlTarget target in frontier.Reader.ReadAllAsync(cancellationToken))
@@ -300,8 +301,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
         PlaywrightCrawlOptions options, PlaywrightCrawlResult result, ConcurrentDictionary<string, byte> queuedPages,
         ConcurrentDictionary<string, byte> visitedPages, ConcurrentDictionary<string, byte> savedUrls,
         ChannelWriter<CrawlTarget> writer, PendingCounter pendingCounter, Stopwatch stopwatch,
-        SemaphoreSlim globalSemaphore, ConcurrentDictionary<string, CrawlerDomainState> domainStates,
-        ConcurrentDictionary<string, SemaphoreSlim> ipSemaphores, AsyncLock resultLock,
+        AsyncSemaphore globalSemaphore, ConcurrentDictionary<string, CrawlerDomainState> domainStates,
+        ConcurrentDictionary<string, AsyncSemaphore> ipSemaphores, AsyncLock resultLock,
         CancellationToken cancellationToken)
     {
         PlaywrightCrawlPolicy policy = options.Policy ?? new PlaywrightCrawlPolicy();
@@ -311,8 +312,8 @@ public sealed class PlaywrightCrawler : IPlaywrightCrawler
 
         string ipKey = await _urlUtil.ResolveIpKey(target.Uri, cancellationToken).NoSync();
 
-        SemaphoreSlim ipSemaphore = ipSemaphores.GetOrAdd(ipKey,
-            _ => new SemaphoreSlim(policy.PerIpMaxConcurrency, policy.PerIpMaxConcurrency));
+        AsyncSemaphore ipSemaphore = ipSemaphores.GetOrAdd(ipKey,
+            _ => new AsyncSemaphore(policy.PerIpMaxConcurrency));
 
         IPage page = await context.NewPageAsync().NoSync();
 

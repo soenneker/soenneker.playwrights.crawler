@@ -1,4 +1,5 @@
 using Soenneker.Asyncs.Locks;
+using Soenneker.Asyncs.Semaphores;
 using Soenneker.Playwrights.Crawler.Enums;
 using System;
 using System.Collections.Generic;
@@ -14,7 +15,7 @@ public sealed class CrawlerDomainState
     public CrawlerDomainState(string domainKey, int maxConcurrency)
     {
         DomainKey = domainKey;
-        ConcurrencySemaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+        ConcurrencySemaphore = new AsyncSemaphore(maxConcurrency);
         Mode = CrawlerDomainMode.Normal;
     }
 
@@ -26,7 +27,7 @@ public sealed class CrawlerDomainState
     /// <summary>
     /// Gets concurrency semaphore.
     /// </summary>
-    public SemaphoreSlim ConcurrencySemaphore { get; }
+    public AsyncSemaphore ConcurrencySemaphore { get; }
 
     /// <summary>
     /// Gets state lock.
