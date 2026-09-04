@@ -6,6 +6,7 @@ using Soenneker.Playwrights.Crawler.Utils.Abstract;
 
 namespace Soenneker.Playwrights.Crawler.Utils;
 
+/// <inheritdoc cref="IPlaywrightCrawlerBrowserUtil" />
 internal sealed class PlaywrightCrawlerBrowserUtil : IPlaywrightCrawlerBrowserUtil
 {
     public Task<IBrowser> CreateBrowser(IPlaywright playwright, PlaywrightCrawlOptions options)

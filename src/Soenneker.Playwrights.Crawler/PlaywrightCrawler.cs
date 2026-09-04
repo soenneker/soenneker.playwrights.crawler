@@ -21,6 +21,7 @@ using Soenneker.Playwrights.Crawler.Enums;
 
 namespace Soenneker.Playwrights.Crawler;
 
+/// <inheritdoc cref="IPlaywrightCrawler" />
 public sealed class PlaywrightCrawler : IPlaywrightCrawler
 {
     private readonly ILogger<PlaywrightCrawler> _logger;

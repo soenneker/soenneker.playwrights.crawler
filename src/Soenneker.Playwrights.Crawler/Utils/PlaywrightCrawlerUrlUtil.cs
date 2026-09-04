@@ -16,6 +16,7 @@ using Soenneker.Playwrights.Crawler.Utils.Abstract;
 
 namespace Soenneker.Playwrights.Crawler.Utils;
 
+/// <inheritdoc cref="IPlaywrightCrawlerUrlUtil" />
 internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
 {
     private const string ExternalDirectory = "_external";
