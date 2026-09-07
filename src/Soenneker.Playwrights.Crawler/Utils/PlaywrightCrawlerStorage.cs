@@ -831,7 +831,8 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
         if (contentType.IsNullOrWhiteSpace())
             return null;
 
-        return contentType.Split(';', 2, StringSplitOptions.TrimEntries)[0].Trim();
+        int separator = contentType.IndexOf(';');
+        return separator >= 0 ? contentType.AsSpan(0, separator).Trim().ToString() : contentType.Trim();
     }
 
     private static Dictionary<string, string> BuildDirectDownloadHeaders(
