@@ -432,8 +432,16 @@ internal sealed class PlaywrightCrawlerPolicyUtil : IPlaywrightCrawlerPolicyUtil
 
         if (domainState.RecentResponseTimesMs.Count >= policy.MinimumResponseTimeSamplesForSlowMode)
         {
-            List<long> ordered = [.. domainState.RecentResponseTimesMs.OrderBy(static value => value)];
-            long median = ordered[ordered.Count / 2];
+            int count = domainState.RecentResponseTimesMs.Count;
+            if (count == 0)
+                throw new ArgumentOutOfRangeException("index");
+
+            Span<long> ordered = count <= 64 ? stackalloc long[count] : new long[count];
+            for (int i = 0; i < count; i++)
+                ordered[i] = domainState.RecentResponseTimesMs[i];
+
+            ordered.Sort();
+            long median = ordered[count / 2];
 
             if (median > policy.SlowModeMedianResponseThresholdMs)
             {

@@ -434,106 +434,113 @@ internal sealed class PlaywrightCrawlerStorage : IPlaywrightCrawlerStorage
                 Timeout = options.NavigationTimeoutMs
             }).NoSync();
 
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (!response.Ok)
+            try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!response.Ok)
+                {
+                    using (await resultLock.Lock(cancellationToken).NoSync())
+                    {
+                        result.Files.Add(new PlaywrightCrawlFileResult
+                        {
+                            Url = url,
+                            RelativePath = relativePath,
+                            IsHtmlDocument = isHtmlDocument,
+                            ContentType = contentType,
+                            Saved = false,
+                            SkipReason = $"Direct download returned HTTP {response.Status}."
+                        });
+                    }
+
+                    return false;
+                }
+
+                contentType ??= TryGetHeaderValue(response.Headers, "content-type");
+
+                long? contentLength = TryGetContentLength(response.Headers);
+
                 using (await resultLock.Lock(cancellationToken).NoSync())
                 {
-                    result.Files.Add(new PlaywrightCrawlFileResult
+                    if (contentLength.HasValue && options.MaxStorageBytes.HasValue &&
+                        result.BytesWritten + contentLength.Value > options.MaxStorageBytes.Value)
                     {
-                        Url = url,
-                        RelativePath = relativePath,
-                        IsHtmlDocument = isHtmlDocument,
-                        ContentType = contentType,
-                        Saved = false,
-                        SkipReason = $"Direct download returned HTTP {response.Status}."
-                    });
+                        result.StorageLimitReached = true;
+                        result.Files.Add(new PlaywrightCrawlFileResult
+                        {
+                            Url = url,
+                            RelativePath = relativePath,
+                            IsHtmlDocument = isHtmlDocument,
+                            ContentType = contentType,
+                            Saved = false,
+                            SkipReason = "Direct download would exceed the configured storage limit."
+                        });
+
+                        return false;
+                    }
                 }
 
-                return false;
-            }
+                cancellationToken.ThrowIfCancellationRequested();
 
-            contentType ??= TryGetHeaderValue(response.Headers, "content-type");
+                byte[] body = await response.BodyAsync().NoSync();
 
-            long? contentLength = TryGetContentLength(response.Headers);
+                cancellationToken.ThrowIfCancellationRequested();
 
-            using (await resultLock.Lock(cancellationToken).NoSync())
-            {
-                if (contentLength.HasValue && options.MaxStorageBytes.HasValue &&
-                    result.BytesWritten + contentLength.Value > options.MaxStorageBytes.Value)
-                {
-                    result.StorageLimitReached = true;
-                    result.Files.Add(new PlaywrightCrawlFileResult
-                    {
-                        Url = url,
-                        RelativePath = relativePath,
-                        IsHtmlDocument = isHtmlDocument,
-                        ContentType = contentType,
-                        Saved = false,
-                        SkipReason = "Direct download would exceed the configured storage limit."
-                    });
-
+                if (body.Length == 0)
                     return false;
-                }
-            }
 
-            cancellationToken.ThrowIfCancellationRequested();
+                body = PrepareTextResourceForSave(rootUri, resourceUri, body, isHtmlDocument, contentType, options);
 
-            byte[] body = await response.BodyAsync().NoSync();
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (body.Length == 0)
-                return false;
-
-            body = PrepareTextResourceForSave(rootUri, resourceUri, body, isHtmlDocument, contentType, options);
-
-            using (await resultLock.Lock(cancellationToken).NoSync())
-            {
-                if (options.MaxStorageBytes.HasValue &&
-                    result.BytesWritten + body.LongLength > options.MaxStorageBytes.Value)
+                using (await resultLock.Lock(cancellationToken).NoSync())
                 {
-                    result.StorageLimitReached = true;
+                    if (options.MaxStorageBytes.HasValue &&
+                        result.BytesWritten + body.LongLength > options.MaxStorageBytes.Value)
+                    {
+                        result.StorageLimitReached = true;
+                        result.Files.Add(new PlaywrightCrawlFileResult
+                        {
+                            Url = url,
+                            RelativePath = relativePath,
+                            IsHtmlDocument = isHtmlDocument,
+                            ContentType = contentType,
+                            Saved = false,
+                            SkipReason = "Direct download would exceed the configured storage limit."
+                        });
+
+                        return false;
+                    }
+                }
+
+                await EnsureDirectoryForFile(fullPath, cancellationToken).NoSync();
+
+                await _fileUtil.Write(fullPath, body, true, cancellationToken).NoSync();
+
+                using (await resultLock.Lock(cancellationToken).NoSync())
+                {
+                    result.BytesWritten += body.LongLength;
+
+                    if (isHtmlDocument)
+                        result.HtmlFilesSaved++;
+                    else
+                        result.AssetFilesSaved++;
+
                     result.Files.Add(new PlaywrightCrawlFileResult
                     {
                         Url = url,
                         RelativePath = relativePath,
                         IsHtmlDocument = isHtmlDocument,
                         ContentType = contentType,
-                        Saved = false,
-                        SkipReason = "Direct download would exceed the configured storage limit."
+                        SizeBytes = body.LongLength,
+                        Saved = true
                     });
-
-                    return false;
                 }
+
+                return true;
             }
-
-            await EnsureDirectoryForFile(fullPath, cancellationToken).NoSync();
-
-            await _fileUtil.Write(fullPath, body, true, cancellationToken).NoSync();
-
-            using (await resultLock.Lock(cancellationToken).NoSync())
+            finally
             {
-                result.BytesWritten += body.LongLength;
-
-                if (isHtmlDocument)
-                    result.HtmlFilesSaved++;
-                else
-                    result.AssetFilesSaved++;
-
-                result.Files.Add(new PlaywrightCrawlFileResult
-                {
-                    Url = url,
-                    RelativePath = relativePath,
-                    IsHtmlDocument = isHtmlDocument,
-                    ContentType = contentType,
-                    SizeBytes = body.LongLength,
-                    Saved = true
-                });
+                await response.DisposeAsync().NoSync();
             }
-
-            return true;
         }
         catch (Exception ex)
         {
