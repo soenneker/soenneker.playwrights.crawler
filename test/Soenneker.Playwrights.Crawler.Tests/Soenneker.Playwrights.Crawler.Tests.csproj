@@ -26,5 +26,10 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\Soenneker.Playwrights.Crawler\Soenneker.Playwrights.Crawler.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    </ItemGroup>
 </Project>
 
