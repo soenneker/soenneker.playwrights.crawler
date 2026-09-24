@@ -1,3 +1,4 @@
+using Soenneker.Utils.File.Abstract;
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
@@ -21,6 +22,8 @@ namespace Soenneker.Playwrights.Crawler.Tests;
 [ClassDataSource<Host>(Shared = SharedType.PerTestSession)]
 public sealed class PlaywrightCrawlerTests : HostedUnitTest
 {
+    private readonly IFileUtil _fileUtil;
+
     private readonly IPlaywrightCrawler _util;
     private readonly IPlaywrightCrawlerPolicyUtil _policyUtil;
     private readonly IPlaywrightCrawlerStorage _storage;
@@ -28,6 +31,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
 
     public PlaywrightCrawlerTests(Host host) : base(host)
     {
+        _fileUtil = Resolve<IFileUtil>(true);
         _util = Resolve<IPlaywrightCrawler>(true);
         _policyUtil = Resolve<IPlaywrightCrawlerPolicyUtil>(true);
         _storage = Resolve<IPlaywrightCrawlerStorage>(true);
@@ -337,7 +341,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
                 new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase), resultLock,
                 cancellationToken);
 
-            string savedHtml = await File.ReadAllTextAsync(Path.Combine(saveDirectory, "index.html"));
+            string savedHtml = await _fileUtil.Read(Path.Combine(saveDirectory, "index.html"));
 
             savedHtml.Should().Contain("src=\"/script.js\"");
             savedHtml.Should().Contain("href=\"/path?x=1#section\"");
