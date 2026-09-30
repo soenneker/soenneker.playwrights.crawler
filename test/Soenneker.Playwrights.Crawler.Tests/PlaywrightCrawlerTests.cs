@@ -86,7 +86,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
 
     [LocalOnly]
     [Test]
-    public async Task EnsureDomainRequestAllowed_does_not_wait_when_throttling_is_disabled(CancellationToken cancellationToken)
+    public async ValueTask EnsureDomainRequestAllowed_does_not_wait_when_throttling_is_disabled(CancellationToken cancellationToken)
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)
         {
@@ -107,7 +107,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [Test]
-    public async Task EnsureDomainRequestAllowed_fails_instead_of_waiting_for_an_extreme_cooldown(CancellationToken cancellationToken)
+    public async ValueTask EnsureDomainRequestAllowed_fails_instead_of_waiting_for_an_extreme_cooldown(CancellationToken cancellationToken)
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)
         {
@@ -126,7 +126,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [Test]
-    public async Task AcquireDomainConcurrency_fails_instead_of_polling_for_an_extreme_cooldown(CancellationToken cancellationToken)
+    public async ValueTask AcquireDomainConcurrency_fails_instead_of_polling_for_an_extreme_cooldown(CancellationToken cancellationToken)
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1)
         {
@@ -145,7 +145,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
     }
 
     [Test]
-    public async Task Response_time_slow_mode_requires_the_configured_minimum_sample_count(CancellationToken cancellationToken)
+    public async ValueTask Response_time_slow_mode_requires_the_configured_minimum_sample_count(CancellationToken cancellationToken)
     {
         var domainState = new CrawlerDomainState("example.com", maxConcurrency: 1);
         var policy = new PlaywrightCrawlPolicy
