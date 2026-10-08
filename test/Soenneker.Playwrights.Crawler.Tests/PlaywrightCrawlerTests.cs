@@ -341,7 +341,7 @@ public sealed class PlaywrightCrawlerTests : HostedUnitTest
                 new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase), resultLock,
                 cancellationToken);
 
-            string savedHtml = await _fileUtil.Read(Path.Combine(saveDirectory, "index.html"));
+            string savedHtml = await _fileUtil.Read(Path.Combine(saveDirectory, "index.html"), cancellationToken: cancellationToken);
 
             savedHtml.Should().Contain("src=\"/script.js\"");
             savedHtml.Should().Contain("href=\"/path?x=1#section\"");
