@@ -44,7 +44,7 @@
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.18" />
         <PackageReference Include="Soenneker.Html.Formatter" Version="4.0.197" />
-        <PackageReference Include="Soenneker.Playwrights.Installation" Version="4.0.209" />
+        <PackageReference Include="Soenneker.Playwrights.Installation" Version="4.0.213" />
         <PackageReference Include="Soenneker.Playwrights.Extensions.Stealth" Version="4.0.157" />
     </ItemGroup>
     <ItemGroup>
