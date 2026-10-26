@@ -44,14 +44,14 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="11.0.35" />
-        <PackageReference Include="Soenneker.Html.Formatter" Version="4.0.218" />
-        <PackageReference Include="Soenneker.Playwrights.Installation" Version="4.0.232" />
-        <PackageReference Include="Soenneker.Playwrights.Extensions.Stealth" Version="11.0.188" />
+        <PackageReference Include="Soenneker.Html.Formatter" Version="11.0.222" />
+        <PackageReference Include="Soenneker.Playwrights.Installation" Version="11.0.235" />
+        <PackageReference Include="Soenneker.Playwrights.Extensions.Stealth" Version="11.0.190" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Soenneker.Extensions.String" Version="4.0.800" />
         <PackageReference Include="Soenneker.Extensions.ValueTask" Version="4.0.133" />
-        <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="4.0.43" />
-        <PackageReference Include="Soenneker.Utils.Random" Version="4.0.146" />
+        <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="11.0.44" />
+        <PackageReference Include="Soenneker.Utils.Random" Version="11.0.147" />
     </ItemGroup>
 </Project>
