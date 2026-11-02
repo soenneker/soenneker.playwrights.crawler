@@ -52,6 +52,6 @@
         <PackageReference Include="Soenneker.Extensions.String" Version="4.0.800" />
         <PackageReference Include="Soenneker.Extensions.ValueTask" Version="4.0.133" />
         <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="11.0.44" />
-        <PackageReference Include="Soenneker.Utils.Random" Version="11.0.147" />
+        <PackageReference Include="Soenneker.Utils.Random" Version="11.0.148" />
     </ItemGroup>
 </Project>
