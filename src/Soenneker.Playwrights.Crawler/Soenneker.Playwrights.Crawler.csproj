@@ -43,15 +43,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="11.0.36" />
         <PackageReference Include="Soenneker.Html.Formatter" Version="11.0.229" />
         <PackageReference Include="Soenneker.Playwrights.Installation" Version="11.0.239" />
         <PackageReference Include="Soenneker.Playwrights.Extensions.Stealth" Version="11.0.191" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Extensions.String" Version="11.0.807" />
-        <PackageReference Include="Soenneker.Extensions.ValueTask" Version="4.0.133" />
-        <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="11.0.45" />
-        <PackageReference Include="Soenneker.Utils.Random" Version="11.0.149" />
     </ItemGroup>
 </Project>
