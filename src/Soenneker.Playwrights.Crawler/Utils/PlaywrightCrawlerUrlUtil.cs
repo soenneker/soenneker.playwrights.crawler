@@ -113,7 +113,7 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
 
         if (isHtmlDocument)
         {
-            if (segments.Length == 0 || resourceUri.AbsolutePath.EndsWith("/", StringComparison.Ordinal))
+            if (segments.Length == 0 || resourceUri.AbsolutePath.EndsWith('/'))
             {
                 parts.AddRange(segments);
                 parts.Add("index.html");
@@ -134,7 +134,7 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
             return Path.Combine([.. parts]);
         }
 
-        if (segments.Length == 0 || resourceUri.AbsolutePath.EndsWith("/", StringComparison.Ordinal))
+        if (segments.Length == 0 || resourceUri.AbsolutePath.EndsWith('/'))
         {
             parts.AddRange(segments);
             parts.Add($"index{ResolveAssetExtension(contentType)}");
@@ -177,7 +177,7 @@ internal sealed class PlaywrightCrawlerUrlUtil : IPlaywrightCrawlerUrlUtil
 
             if (TryNormalizeHttpUrl(allowedPageUrl, out Uri? absoluteAllowedUri))
                 allowedUri = absoluteAllowedUri;
-            else if (allowedPageUrl.StartsWith("/", StringComparison.Ordinal) && Uri.TryCreate(rootUri, allowedPageUrl, out Uri? relativeAllowedUri))
+            else if (allowedPageUrl.StartsWith('/') && Uri.TryCreate(rootUri, allowedPageUrl, out Uri? relativeAllowedUri))
                 allowedUri = NormalizeUrl(relativeAllowedUri);
 
             if (allowedUri is null)
